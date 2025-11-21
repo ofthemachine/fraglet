@@ -1,0 +1,5 @@
+name: lisp
+language: lisp
+container: 100hellos/lisp:local
+fragletPath: /code-fragments/MAIN
+

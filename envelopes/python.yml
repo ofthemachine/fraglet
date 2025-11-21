@@ -1,0 +1,5 @@
+name: python
+language: python
+container: 100hellos/python:local
+fragletPath: /code-fragments/MAIN
+

@@ -1,0 +1,5 @@
+name: prolog
+language: prolog
+container: 100hellos/prolog:local
+fragletPath: /code-fragments/MAIN
+

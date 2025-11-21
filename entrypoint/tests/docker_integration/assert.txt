@@ -1,0 +1,33 @@
+=== Test 1: Single match ===
+Hello from the template!
+🎉 Fraglet injected successfully!
+Goodbye!
+
+=== Test 2: Range-based match ===
+A
+🎉 Fraglet injected successfully!
+C
+
+---
+Testing agent-help:
+# Alpine Fraglet Help
+
+This container supports fraglet injection into bash scripts.
+
+## Usage
+
+The fraglet will be injected at the `FRAGLET` marker in `/code/hello-world.sh`.
+
+## Example
+
+```bash
+docker run -v /path/to/fraglet:/FRAGLET myimage
+```
+
+---
+Testing how-to:
+# How To Use This Container
+
+1. Mount your fraglet code to `/FRAGLET`
+2. The entrypoint will inject it into `/code/hello-world.sh` at the `FRAGLET` marker
+3. The script will be executed automatically

@@ -1,0 +1,60 @@
+# fraglet-entrypoint configuration
+# This file configures how fraglets are injected and executed within a container.
+
+# Temporary location where the fraglet code is written before injection
+# The fraglet code is read from this path and injected into the target file
+#
+# *** IMPORTANT ***
+# This is the interface between the fraglet and the container, and users of
+# fraglet compatible containers must mount this path to the fraglet code.
+#
+# Default: /FRAGLET
+fragletTempPath: /FRAGLET
+
+# Injection configuration: how fraglet code is inserted into the target file
+injection:
+  # Full path to the target file where fraglet code will be injected
+  codePath: /code/hello-world.sh
+
+  # Injection marker: the fraglet code replaces the entire line containing this string
+  # The matched line is completely replaced with the fraglet code (indentation preserved)
+  # For region-based injection, use match_start and match_end instead
+  # Default: FRAGLET
+  match: FRAGLET
+
+  # Alternative: region-based injection (both must be specified together)
+  # match_start: "# BEGIN_FRAGLET"
+  # match_end: "# END_FRAGLET"
+  # All lines from match_start through match_end (inclusive) are replaced with fraglet code
+
+# Path to agent-help markdown file (displayed via "agent-help" command)
+# The file is first checked at this absolute path, then in the code directory
+agentHelp: /agent-help.md
+
+# Path to how-to markdown file (displayed via "how-to" command)
+# The file is first checked at this absolute path, then in the code directory
+howTo: /how-to.md
+
+# Execution configuration: how the code is executed after injection
+execution:
+  # Command/path to execute. If specified, executes: path [args...]
+  # If omitted, executes: args[0] [args[1:]...] (treats command-line args as the command)
+  #
+  # Examples:
+  #   path: /code/hello-world.sh
+  #     → Executes: /code/hello-world.sh [all command-line args]
+  #
+  #   path: python /code/script.py
+  #     → Executes: python /code/script.py [all command-line args]
+  #
+  #   path: (omitted)
+  #     → Executes: [first arg] [remaining args...]
+  #     → Example: entrypoint ls -la → executes: ls -la
+  path: /code/hello-world.sh
+
+  # Whether to make the execution path executable (default: true)
+  # Note: If executing a file directly (not via interpreter), this MUST be true
+  # or execution will fail. Set to false only when using interpreter commands
+  # like "python /path/to/script.py" or "bash /path/to/script.sh"
+  makeExecutable: true
+

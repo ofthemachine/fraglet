@@ -1,0 +1,5 @@
+name: r
+language: r
+container: 100hellos/r-project:local
+fragletPath: /code-fragments/MAIN
+

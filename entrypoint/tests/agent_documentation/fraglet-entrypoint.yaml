@@ -1,0 +1,8 @@
+agentHelp: fraglet/agent-help.md
+injection:
+  codePath: fraglet/hello-world.sh
+  match: MAIN
+fragletTempPath: code-fragments/MAIN
+execution:
+  path: code/hello-world.sh
+  makeExecutable: true

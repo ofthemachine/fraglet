@@ -1,0 +1,8 @@
+Hello from template!
+✨ Default fraglet executed!
+Goodbye!
+---
+# Default Agent Help
+---
+# Default How To
+

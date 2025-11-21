@@ -1,0 +1,14 @@
+name: python-remote
+language: python
+container: python:3.11-slim
+fragletTemplate: |
+  #!/usr/bin/env python3
+  # FRAGLET_INJECT
+fragletPath: /tmp/fraglet_exec.py
+injection:
+  codePath: /tmp/fraglet_exec.py
+  match: "# FRAGLET_INJECT"
+execution:
+  path: python /tmp/fraglet_exec.py
+  makeExecutable: false
+
