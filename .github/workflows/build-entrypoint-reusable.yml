@@ -1,0 +1,69 @@
+name: Build fraglet-entrypoint (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version string (optional, for release builds)'
+        required: false
+        type: string
+
+jobs:
+  build:
+    name: 🛠 Build fraglet-entrypoint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Setup Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: 'entrypoint/go.mod'
+
+      - name: Run tests
+        working-directory: entrypoint
+        run: |
+          go test ./...
+
+      - name: Build multi-arch binaries
+        working-directory: entrypoint
+        run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          SHORT_SHA=$(git rev-parse --short=7 HEAD)
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Use provided version or generate from commit
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="dev+sha.${SHORT_SHA}"
+          fi
+
+          # Build for each platform
+          for platform in "linux/amd64" "linux/arm64"; do
+            GOOS=$(echo $platform | cut -d'/' -f1)
+            GOARCH=$(echo $platform | cut -d'/' -f2)
+            PLATFORM_NAME="${GOOS}-${GOARCH}"
+
+            echo "Building ${PLATFORM_NAME}..."
+
+            CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} go build \
+              -ldflags="-s -w -X main.commit=${COMMIT_SHA} -X main.buildTime=${BUILD_TIME}" \
+              -o "fraglet-entrypoint-${PLATFORM_NAME}" ./cmd
+
+            # Generate checksum
+            sha256sum "fraglet-entrypoint-${PLATFORM_NAME}" > "fraglet-entrypoint-${PLATFORM_NAME}.sha256"
+          done
+
+          # Create combined checksums
+          sha256sum fraglet-entrypoint-* | grep -v "\.sha256" > checksums.txt
+
+      - name: Upload binaries as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: fraglet-entrypoint-binaries
+          path: |
+            entrypoint/fraglet-entrypoint-*
+            entrypoint/checksums.txt
+          retention-days: 1
+
