@@ -12,8 +12,7 @@ import (
 type EntrypointConfig struct {
 	FragletTempPath string                     `json:"fragletTempPath" yaml:"fragletTempPath"`
 	Injection       InjectionConfig            `json:"injection" yaml:"injection"`
-	AgentHelp       string                     `json:"agentHelp" yaml:"agentHelp"` // Path to agent-help markdown file (mode is implicit: container)
-	HowTo           string                     `json:"howTo" yaml:"howTo"`         // Path to how-to markdown file
+	Guide           string                     `json:"guide" yaml:"guide"` // Path to guide markdown file (mode is implicit: container)
 	Execution       *EntrypointExecutionConfig `json:"execution,omitempty" yaml:"execution,omitempty"`
 }
 
@@ -40,8 +39,7 @@ func DefaultEntrypointConfig() *EntrypointConfig {
 			CodePath: DefaultCodePath,
 			Match:    DefaultFragletInjectionMatch,
 		},
-		AgentHelp: DefaultAgentHelpPath,
-		HowTo:     DefaultHowToPath,
+		Guide: DefaultGuidePath,
 		Execution: &EntrypointExecutionConfig{
 			Path:           DefaultCodePath,
 			MakeExecutable: &makeExec,
@@ -50,26 +48,29 @@ func DefaultEntrypointConfig() *EntrypointConfig {
 }
 
 const (
-	DefaultEntrypointConfigPath  = "/fraglet-entrypoint.yaml"
+	DefaultEntrypointConfigPath  = "/fraglet.yaml"
 	DefaultCodePath              = "/code/hello-world.sh"
 	DefaultFragletTempPath       = "/FRAGLET"
 	DefaultFragletInjectionMatch = "FRAGLET"
-	DefaultAgentHelpPath         = "/agent-help.md"
-	DefaultHowToPath             = "/how-to.md"
+	DefaultGuidePath             = "/guide.md"
 )
 
 // LoadEntrypointConfig loads config from FRAGLET_CONFIG envvar path, or looks for
-// fraglet-entrypoint.yaml as a sibling to the binary, or uses default path
+// fraglet.yaml or fraglet.yml as a sibling to the binary, or uses default path
 func LoadEntrypointConfig() (*EntrypointConfig, error) {
 	path := os.Getenv("FRAGLET_CONFIG")
 	if path == "" {
-		// Try to find config as sibling to the binary
+		// Try to find config as sibling to the binary (check both .yaml and .yml)
 		execPath, err := os.Executable()
 		if err == nil {
 			execDir := filepath.Dir(execPath)
-			siblingPath := filepath.Join(execDir, "fraglet-entrypoint.yaml")
-			if _, err := os.Stat(siblingPath); err == nil {
-				path = siblingPath
+			// Try fraglet.yaml first, then fraglet.yml
+			for _, name := range []string{"fraglet.yaml", "fraglet.yml"} {
+				siblingPath := filepath.Join(execDir, name)
+				if _, err := os.Stat(siblingPath); err == nil {
+					path = siblingPath
+					break
+				}
 			}
 		}
 
@@ -102,11 +103,8 @@ func LoadEntrypointConfig() (*EntrypointConfig, error) {
 	} else if cfg.Injection.CodePath == "" {
 		cfg.Injection.CodePath = defaults.Injection.CodePath
 	}
-	if cfg.AgentHelp == "" {
-		cfg.AgentHelp = defaults.AgentHelp
-	}
-	if cfg.HowTo == "" {
-		cfg.HowTo = defaults.HowTo
+	if cfg.Guide == "" {
+		cfg.Guide = defaults.Guide
 	}
 	if cfg.Execution == nil {
 		cfg.Execution = defaults.Execution

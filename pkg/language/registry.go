@@ -9,7 +9,7 @@ type LanguageConfig struct {
 }
 
 // Languages is the registry of supported languages
-// To help the agent use the language, the container should respond to "agent-help"
+// To help the agent use the language, the container should respond to "guide"
 var Languages = map[string]LanguageConfig{
 	"python": {
 		Name:         "python",

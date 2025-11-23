@@ -1,4 +1,4 @@
-agentHelp: fraglet/agent-help.md
+guide: fraglet/guide.md
 injection:
   codePath: fraglet/hello-world.sh
   match: MAIN

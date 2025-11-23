@@ -2,13 +2,10 @@
 set -e
 
 # The binary and all test files are already in the temp test directory
-# The fraglet-entrypoint.yaml is already a sibling to the binary (both in temp dir root)
-# So we just need to unset the envvar and run the commands
-
-unset FRAGLET_CONFIG
+# The fraglet.yaml is already a sibling to the binary (both in temp dir root)
 ./fraglet-entrypoint
 
 echo "---"
-./fraglet-entrypoint agent-help
+./fraglet-entrypoint usage
 echo "---"
-./fraglet-entrypoint how-to
+./fraglet-entrypoint guide

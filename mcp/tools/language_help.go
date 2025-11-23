@@ -43,15 +43,15 @@ func LanguageHelp(ctx context.Context, req *mcp.CallToolRequest, input LanguageH
 		return nil, LanguageHelpOutput{}, fmt.Errorf("unsupported language: %s", input.Lang)
 	}
 
-	// Run docker command to get agent-help
-	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", envelope.Container, "agent-help")
+	// Run docker command to get guide
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", envelope.Container, "guide")
 
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return nil, LanguageHelpOutput{}, fmt.Errorf("failed to get agent-help for %s: %w (stderr: %s)", input.Lang, err, stderr.String())
+		return nil, LanguageHelpOutput{}, fmt.Errorf("failed to get guide for %s: %w (stderr: %s)", input.Lang, err, stderr.String())
 	}
 
 	help := strings.TrimSpace(stdout.String())

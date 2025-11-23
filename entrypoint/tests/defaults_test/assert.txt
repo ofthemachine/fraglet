@@ -2,7 +2,42 @@ Hello from template!
 ✨ Default fraglet executed!
 Goodbye!
 ---
-# Default Agent Help
+# Container Usage
+
+## Mount and Run
+
+Mount your fraglet code to /FRAGLET and run:
+
+```bash
+docker run --rm -v /path/to/fraglet:/FRAGLET:ro <container>
+```
+
+## Code Injection
+
+Code will be injected into `code/hello-world.sh` at the marker: `FRAGLET`
+
+## Execution
+
+After injection, the container executes: `code/hello-world.sh`
+
+## Example
+
+Here's a functional example using the existing code:
+
+```bash
+# Read the existing code
+cat > /tmp/fraglet.sh << 'EOF'
+echo 'Hello, World!'
+EOF
+
+# Mount and run
+docker run --rm -v /tmp/fraglet.sh:/FRAGLET:ro <container>
+```
+
+## Documentation
+
+- `usage` - Container usage (this document)
+- `guide` - Authoring guide for writing fraglets
 ---
-# Default How To
+# Default Agent Help
 

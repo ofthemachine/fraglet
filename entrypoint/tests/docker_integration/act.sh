@@ -16,19 +16,19 @@ echo ""
 echo "=== Test 2: Range-based match ==="
 docker run --rm \
   -v /tmp/test-fraglet.sh:/FRAGLET:ro \
-  -e FRAGLET_CONFIG=/fraglet-entrypoint-alternative.yaml \
+  -e FRAGLET_CONFIG=/fraglet-alternative.yaml \
   fraglet-test:latest 2>&1
 
-# Test the agent-help command
+# Test the usage command
 echo ""
 echo "---"
-echo "Testing agent-help:"
-docker run --rm fraglet-test:latest agent-help
+echo "Testing usage:"
+docker run --rm fraglet-test:latest usage
 
 echo ""
 echo "---"
-echo "Testing how-to:"
-docker run --rm fraglet-test:latest how-to
+echo "Testing guide:"
+docker run --rm fraglet-test:latest guide
 
 # Cleanup
 docker rmi fraglet-test:latest > /dev/null 2>&1 || true

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/ofthemachine/fraglet/pkg/fraglet"
 )
@@ -39,14 +40,29 @@ func (e *Executor) executeWithArgs(args []string) (int, error) {
 	var cmdArgs []string
 
 	if e.cfg.Execution != nil && e.cfg.Execution.Path != "" {
-		// Use configured execution path with all args
-		cmdPath = e.cfg.Execution.Path
-		cmdArgs = args
+		// Parse execution path - split by spaces to handle "python3 /path/to/script.py"
+		pathParts := strings.Fields(e.cfg.Execution.Path)
+		if len(pathParts) == 0 {
+			return 1, fmt.Errorf("execution path is empty")
+		}
+		cmdPath = pathParts[0]
+		cmdArgs = pathParts[1:]
+		// Append any additional args from command line
+		cmdArgs = append(cmdArgs, args...)
 
-		// Make executable if needed
+		// Make executable if needed (only for the first part if it's a file path)
 		if e.cfg.Execution.ShouldMakeExecutable() {
-			if err := e.makeExecutable(cmdPath); err != nil {
-				return 1, err
+			// Only try to make executable if it looks like a file path (not an interpreter)
+			if len(pathParts) > 1 {
+				// If there are multiple parts, the second part is likely the file
+				if err := e.makeExecutable(pathParts[1]); err != nil {
+					return 1, err
+				}
+			} else {
+				// Single part, treat as file path
+				if err := e.makeExecutable(cmdPath); err != nil {
+					return 1, err
+				}
 			}
 		}
 	} else if len(args) > 0 {

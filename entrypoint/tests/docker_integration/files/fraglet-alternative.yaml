@@ -3,8 +3,7 @@ injection:
   codePath: /code/hello-world-range.sh
   match_start: START
   match_end: END
-agentHelp: /agent-help.md
-howTo: /how-to.md
+guide: /guide.md
 execution:
   path: /code/hello-world-range.sh
   makeExecutable: true

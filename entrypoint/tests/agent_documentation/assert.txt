@@ -1,10 +1,39 @@
+# Container Usage
+
+## Mount and Run
+
+Mount your fraglet code to /code-fragments/MAIN and run:
+
+```bash
+docker run --rm -v /path/to/fraglet:/code-fragments/MAIN:ro <container>
+```
+
+## Code Injection
+
+Code will be injected into `fraglet/hello-world.sh` at the marker: `MAIN`
+
+## Execution
+
+After injection, the container executes: `code/hello-world.sh`
+
+## Example
+
+Here's a functional example using the existing code:
+
+```bash
+# Read the existing code
+cat > /tmp/fraglet.sh << 'EOF'
+echo 'Hello, World!'
+EOF
+
+# Mount and run
+docker run --rm -v /tmp/fraglet.sh:/code-fragments/MAIN:ro <container>
+```
+
+## Documentation
+
+- `usage` - Container usage (this document)
+- `guide` - Authoring guide for writing fraglets
 # Agent Help
 
 This is the agent help documentation.
-
-# How To
-
-This is the how to documentation.
-
-No agent-help documentation found in this container.
-No how-to documentation found in this container.

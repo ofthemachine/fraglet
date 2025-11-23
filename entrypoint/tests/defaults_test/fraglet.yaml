@@ -2,8 +2,7 @@ fragletTempPath: FRAGLET
 injection:
   codePath: code/hello-world.sh
   match: FRAGLET
-agentHelp: agent-help.md
-howTo: how-to.md
+guide: guide.md
 execution:
   path: code/hello-world.sh
   makeExecutable: true
