@@ -115,6 +115,21 @@ func LoadEntrypointConfig() (*EntrypointConfig, error) {
 	return &cfg, nil
 }
 
+// isLineInjection returns true when a single-line marker should be replaced.
+func isLineInjection(inj InjectionConfig) bool {
+	return inj.Match != ""
+}
+
+// isRangeInjection returns true when a region between start/end markers is replaced.
+func isRangeInjection(inj InjectionConfig) bool {
+	return inj.MatchStart != "" && inj.MatchEnd != ""
+}
+
+// isFileInjection returns true when the entire file should be replaced (codePath only).
+func isFileInjection(inj InjectionConfig) bool {
+	return inj.CodePath != "" && !isLineInjection(inj) && !isRangeInjection(inj)
+}
+
 func isEmptyInjection(inj InjectionConfig) bool {
-	return inj.Match == "" && inj.MatchStart == "" && inj.MatchEnd == ""
+	return !isFileInjection(inj) && !isLineInjection(inj) && !isRangeInjection(inj)
 }

@@ -1,5 +1,4 @@
 name: ruby
 language: ruby
 container: 100hellos/ruby:local
-fragletPath: /code-fragments/MAIN
-
+fragletPath: /FRAGLET

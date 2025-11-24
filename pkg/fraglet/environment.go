@@ -57,9 +57,16 @@ func (e *FragletEnvironment) executeWithFragletEntrypoint(ctx context.Context, e
 	// Create runner
 	r := runner.NewRunner(envelope.Container, "")
 
+	// Build environment variables
+	var envVars []string
+	if envelope.FragletConfig != "" {
+		envVars = append(envVars, fmt.Sprintf("FRAGLET_CONFIG=%s", envelope.FragletConfig))
+	}
+
 	// Execute with volume mount at fragletPath
 	spec := runner.RunSpec{
 		Container: envelope.Container,
+		Env:       envVars,
 		Volumes: []runner.VolumeMount{
 			{
 				HostPath:      tmpFile,

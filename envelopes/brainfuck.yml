@@ -1,0 +1,5 @@
+name: brainfuck
+language: brainfuck
+container: 100hellos/brainfuck:local
+fragletPath: /FRAGLET
+

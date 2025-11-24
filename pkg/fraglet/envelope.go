@@ -14,6 +14,7 @@ type FragletEnvelope struct {
 	Language        string           `yaml:"language"`
 	Container       string           `yaml:"container"`
 	FragletPath     string           `yaml:"fragletPath"`               // Where to inject/mount code
+	FragletConfig   string           `yaml:"fragletConfig,omitempty"`   // Optional: path to fraglet config file (for fraglet-entrypoint containers)
 	FragletTemplate string           `yaml:"fragletTemplate,omitempty"` // Optional: template with markers (bare containers)
 	Injection       *InjectionConfig `yaml:"injection,omitempty"`       // Optional: injection pattern config (bare containers)
 	Guide           string           `yaml:"guide,omitempty"`           // Optional: path to guide file (bare containers only; fraglet-entrypoint provides via "guide" command)

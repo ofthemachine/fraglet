@@ -8,6 +8,9 @@ A
 🎉 Fraglet injected successfully!
 C
 
+=== Test 3: Direct file replacement ===
+🎉 Fraglet injected successfully!
+
 ---
 Testing usage:
 # Container Usage
@@ -36,6 +39,47 @@ Here's a functional example using the existing code:
 # Read the existing code
 cat > /tmp/fraglet.sh << 'EOF'
 echo "FRAGLET replacing here"
+EOF
+
+# Mount and run
+docker run --rm -v /tmp/fraglet.sh:/FRAGLET:ro <container>
+```
+
+## Documentation
+
+- `usage` - Container usage (this document)
+- `guide` - Authoring guide for writing fraglets
+
+---
+Testing usage (replacement config):
+# Container Usage
+
+## Mount and Run
+
+Mount your fraglet code to /FRAGLET and run:
+
+```bash
+docker run --rm -v /path/to/fraglet:/FRAGLET:ro <container>
+```
+
+## Code Injection
+
+Code will be injected into `/code/hello-world-replace.sh` at the marker: entire file replacement (no marker)
+
+## Execution
+
+After injection, the container executes: `/code/hello-world-replace.sh`
+
+## Example
+
+Here's a functional example using the existing code:
+
+```bash
+# Read the existing code
+cat > /tmp/fraglet.sh << 'EOF'
+#!/bin/bash
+echo "This file will be completely replaced"
+echo "Original content here"
 EOF
 
 # Mount and run

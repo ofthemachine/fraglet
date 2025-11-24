@@ -1,0 +1,5 @@
+name: the-c-programming-language
+language: the-c-programming-language
+container: 100hellos/the-c-programming-language:local
+fragletPath: /FRAGLET
+

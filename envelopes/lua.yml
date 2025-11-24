@@ -1,5 +1,4 @@
 name: lua
 language: lua
 container: 100hellos/lua:local
-fragletPath: /code-fragments/MAIN
-
+fragletPath: /FRAGLET

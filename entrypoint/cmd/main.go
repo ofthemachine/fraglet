@@ -153,6 +153,10 @@ func markerDisplay(inj fragletpkg.InjectionConfig) string {
 	if inj.MatchStart != "" && inj.MatchEnd != "" {
 		return fmt.Sprintf("`%s` ... `%s`", inj.MatchStart, inj.MatchEnd)
 	}
+	// Direct file replacement mode: codePath set without match markers
+	if inj.CodePath != "" {
+		return "entire file replacement (no marker)"
+	}
 	return "<no marker configured>"
 }
 
@@ -166,6 +170,22 @@ func normalizePath(path string) string {
 }
 
 func extractExampleCode(inj fragletpkg.InjectionConfig) string {
+	// Direct file replacement mode: return entire file content
+	if inj.CodePath != "" && inj.Match == "" && inj.MatchStart == "" {
+		data, err := os.ReadFile(inj.CodePath)
+		if err != nil {
+			// Return a simple placeholder if target file doesn't exist
+			return "echo 'Hello, World!'"
+		}
+		content := string(data)
+		// Trim trailing newlines
+		content = strings.TrimRight(content, "\n")
+		if content == "" {
+			return "echo 'Hello, World!'"
+		}
+		return content
+	}
+
 	// Read the target file to extract the code at the marker location
 	data, err := os.ReadFile(inj.CodePath)
 	if err != nil {

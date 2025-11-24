@@ -9,8 +9,8 @@ COPY fraglet-entrypoint /usr/local/bin/fraglet-entrypoint
 # Copy all files from files/ directory to root
 COPY ./files /
 
-# Make the script executable
-RUN chmod +x /code/hello-world.sh
+# Make the scripts executable
+RUN chmod +x /code/hello-world.sh /code/hello-world-range.sh /code/hello-world-replace.sh
 
 # Set the entrypoint
 ENTRYPOINT ["/usr/local/bin/fraglet-entrypoint"]
