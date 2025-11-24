@@ -23,7 +23,7 @@ type LanguageHelpInput struct {
 }
 
 type LanguageHelpOutput struct {
-	Help string `json:"help" jsonschema:"markdown guide documentation about the language (authoring guide from the container)"`
+	Help string `json:"help" jsonschema:"markdown guide documentation about the language (authoring guide for the context)"`
 }
 
 func LanguageHelp(ctx context.Context, req *mcp.CallToolRequest, input LanguageHelpInput) (
@@ -55,13 +55,15 @@ func LanguageHelp(ctx context.Context, req *mcp.CallToolRequest, input LanguageH
 	}
 
 	help := strings.TrimSpace(stdout.String())
+	reminder := "\n\n---\nFraglet handles code injection/execution for you. Treat this authoring guide as the single source of truth—no repo spelunking or envelope inspection required. If execution fails, iterate from that feedback rather than hunting for config."
+	helpWithReminder := help + reminder
 
 	// Return formatted TextContent for better rendering in chat
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{
-				Text: help,
+				Text: helpWithReminder,
 			},
 		},
-	}, LanguageHelpOutput{Help: help}, nil
+	}, LanguageHelpOutput{Help: helpWithReminder}, nil
 }

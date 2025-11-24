@@ -75,7 +75,7 @@ func init() {
 				"Each environment provides not just the language, but potentially fluent interfaces for complex systems interactions, " +
 				"data processing libraries, APIs, and more. Use this to explore statistical reasoning, probabilities, mathematical computation, " +
 				"physics simulations, data analysis, and other problem domains best solved with code. " +
-				"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language. " +
+				"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language—those guides already include everything you need, so do not hunt through repos or envelopes. " +
 				"Each language has specific requirements about code format (e.g., complete programs vs. code fragments, required structure, etc.) " +
 				"that you must follow.",
 			Annotations: &mcp.ToolAnnotations{
@@ -94,7 +94,7 @@ func init() {
 			"data processing libraries, APIs, and more. Use this to explore statistical reasoning, probabilities, mathematical computation, "+
 			"physics simulations, data analysis, and other problem domains best solved with code. "+
 			"Supported languages: %s. "+
-			"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language. "+
+			"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language—those guides already include everything you need, so do not hunt through repos or envelopes. "+
 			"Each language has specific requirements about code format (e.g., complete programs vs. code fragments, required structure, etc.) "+
 			"that you must follow. Use this for quick code invocations to test hypotheses, calculate values, analyze data, or prototype solutions.",
 			strings.Join(envelopes, ", ")),
