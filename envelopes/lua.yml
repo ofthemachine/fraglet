@@ -1,4 +1,4 @@
 name: lua
 language: lua
-container: 100hellos/lua:local
+container: 100hellos/lua:latest
 fragletPath: /FRAGLET

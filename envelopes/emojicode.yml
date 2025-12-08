@@ -1,0 +1,7 @@
+name: emojicode
+language: emojicode
+container: 100hellos/emojicode:latest
+fragletPath: /FRAGLET
+
+
+

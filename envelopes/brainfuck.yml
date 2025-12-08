@@ -1,5 +1,7 @@
 name: brainfuck
 language: brainfuck
-container: 100hellos/brainfuck:local
+container: 100hellos/brainfuck:latest
 fragletPath: /FRAGLET
+
+
 

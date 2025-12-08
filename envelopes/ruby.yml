@@ -1,4 +1,4 @@
 name: ruby
 language: ruby
-container: 100hellos/ruby:local
+container: 100hellos/ruby:latest
 fragletPath: /FRAGLET

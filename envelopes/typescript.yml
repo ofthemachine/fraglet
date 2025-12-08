@@ -1,0 +1,5 @@
+name: typescript
+language: typescript
+container: 100hellos/typescript:local
+fragletPath: /FRAGLET
+

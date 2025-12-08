@@ -1,5 +1,5 @@
 name: the-c-programming-language
 language: the-c-programming-language
-container: 100hellos/the-c-programming-language:local
+container: 100hellos/the-c-programming-language:latest
 fragletPath: /FRAGLET
 
