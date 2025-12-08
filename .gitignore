@@ -1,6 +1,9 @@
 # Binaries
 fraglet-entrypoint
 fraglet-mcp
+fragletc
+
+
 *.exe
 *.exe~
 *.dll
