@@ -2,5 +2,4 @@ name: octave
 language: octave
 container: 100hellos/octave:latest
 fragletPath: /FRAGLET
-fragletConfig: /fraglet.yaml
 

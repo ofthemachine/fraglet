@@ -16,13 +16,15 @@ build: pkg/embed/envelopes
 build-cli: pkg/embed/envelopes
 	go build -o fragletc ./cli
 
-install:
-	go install fraglet-mcp
-
-install-cli:
+install: build
 	@GOBIN=$$(go env GOBIN); \
 	if [ -z "$$GOBIN" ]; then GOBIN=$$(go env GOPATH)/bin; fi; \
-	go build -o $$GOBIN/fragletc ./cli
+	cp fraglet-mcp $$GOBIN/
+
+install-cli: build-cli
+	@GOBIN=$$(go env GOBIN); \
+	if [ -z "$$GOBIN" ]; then GOBIN=$$(go env GOPATH)/bin; fi; \
+	cp fragletc $$GOBIN/
 
 test:
 	go test ./...
