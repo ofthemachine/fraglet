@@ -3,6 +3,3 @@ language: the-c-programming-language-main
 container: 100hellos/the-c-programming-language:latest
 fragletPath: /FRAGLET
 fragletConfig: /fraglet-main.yml
-
-
-

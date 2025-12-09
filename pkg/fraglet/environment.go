@@ -24,6 +24,16 @@ func NewFragletEnvironment(envelopesDir string) (*FragletEnvironment, error) {
 	return &FragletEnvironment{registry: registry}, nil
 }
 
+// NewFragletEnvironmentFromEmbedded creates an environment with embedded envelope registry
+func NewFragletEnvironmentFromEmbedded() (*FragletEnvironment, error) {
+	registry, err := NewEnvelopeRegistryFromEmbedded()
+	if err != nil {
+		return nil, err
+	}
+
+	return &FragletEnvironment{registry: registry}, nil
+}
+
 // Execute runs a FragletProc using the specified envelope
 func (e *FragletEnvironment) Execute(ctx context.Context, envelopeName string, proc FragletProc) (*runner.RunResult, error) {
 	// Resolve envelope

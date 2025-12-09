@@ -37,3 +37,6 @@ Thumbs.db
 # Notes and scratch documents not sanitary for the upstream
 HUMAN_NOTES.md
 test-mcp.sh
+
+# Embedded envelopes (copied from envelopes/ for embedding)
+pkg/embed/envelopes/

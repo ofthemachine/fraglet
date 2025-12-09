@@ -1,0 +1,11 @@
+=== Test 1: File input with --input flag ===
+Hello from file!
+
+=== Test 2: File input with short -f flag ===
+Count: 0
+Count: 1
+Count: 2
+
+=== Test 3: File input with custom fraglet-path ===
+File with custom path!
+

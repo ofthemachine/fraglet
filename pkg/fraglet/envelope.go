@@ -2,6 +2,7 @@ package fraglet
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -61,6 +62,43 @@ func NewEnvelopeRegistry(envelopesDir string) (*EnvelopeRegistry, error) {
 			return nil, fmt.Errorf("failed to load %s: %w", file, err)
 		}
 		r.envelopes[env.Name] = env
+	}
+
+	return r, nil
+}
+
+// NewEnvelopeRegistryFromEmbedded creates a registry and loads envelopes from embedded filesystem
+func NewEnvelopeRegistryFromEmbedded() (*EnvelopeRegistry, error) {
+	r := &EnvelopeRegistry{envelopes: make(map[string]*FragletEnvelope)}
+
+	envelopesFS := getEmbeddedEnvelopesFS()
+	err := fs.WalkDir(envelopesFS, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) != ".yml" {
+			return nil
+		}
+
+		data, err := fs.ReadFile(envelopesFS, path)
+		if err != nil {
+			return fmt.Errorf("failed to read embedded envelope %s: %w", path, err)
+		}
+
+		var env FragletEnvelope
+		if err := yaml.Unmarshal(data, &env); err != nil {
+			return fmt.Errorf("failed to parse embedded envelope %s: %w", path, err)
+		}
+
+		r.envelopes[env.Name] = &env
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
 	return r, nil

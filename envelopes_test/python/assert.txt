@@ -1,0 +1,13 @@
+=== Test 1: Simple print from STDIN using envelope name ===
+Hello from STDIN!
+
+=== Test 2: Simple print with explicit fraglet-path ===
+Hello with explicit path!
+
+=== Test 3: Multi-line code ===
+Hello, Fraglet!
+
+=== Test 4: Code from file ===
+Count: 0
+Count: 1
+Count: 2

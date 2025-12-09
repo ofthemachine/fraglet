@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ofthemachine/fraglet/pkg/fraglet"
 	"github.com/ofthemachine/fraglet/pkg/runner"
 )
 
@@ -15,25 +16,39 @@ const defaultFragletPath = "/FRAGLET"
 
 func main() {
 	flag.Usage = usage
+
+	// Define flags - use same variable for short and long forms
+	image := flag.String("image", "", "Container image to use (e.g., 100hellos/python:local)")
+	envelope := flag.String("envelope", "", "Use embedded envelope by name (e.g., python, javascript)")
+	input := flag.String("input", "", "Path to code file (if not provided, reads from STDIN)")
 	fragletPath := flag.String("fraglet-path", defaultFragletPath, "Path where code is mounted in container (default: /FRAGLET)")
-	filePath := flag.String("file", "", "Path to code file (if not provided, reads from STDIN)")
+
+	// Also define short forms that point to the same variables
+	flag.StringVar(image, "i", "", "Container image (short form)")
+	flag.StringVar(envelope, "e", "", "Use embedded envelope by name (short form)")
+	flag.StringVar(input, "f", "", "Path to code file (short form)")
+	flag.StringVar(fragletPath, "p", defaultFragletPath, "Path where code is mounted in container (short form)")
 
 	flag.Parse()
 
-	if flag.NArg() < 1 {
+	// Validate: must specify either image or envelope, but not both
+	if *image == "" && *envelope == "" {
 		usage()
 		os.Exit(1)
 	}
+	if *image != "" && *envelope != "" {
+		fmt.Fprintf(os.Stderr, "Error: cannot specify both --image and --envelope\n")
+		os.Exit(1)
+	}
 
-	image := flag.Arg(0)
 	var code string
 	var err error
 
 	// Read code from file if provided, otherwise from STDIN
-	if *filePath != "" {
-		codeBytes, err := os.ReadFile(*filePath)
+	if *input != "" {
+		codeBytes, err := os.ReadFile(*input)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", *filePath, err)
+			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", *input, err)
 			os.Exit(1)
 		}
 		code = string(codeBytes)
@@ -47,6 +62,37 @@ func main() {
 		code = string(codeBytes)
 	}
 
+	// Determine container image and fraglet path
+	var containerImage string
+	var finalFragletPath string
+
+	if *envelope != "" {
+		// Use embedded envelope
+		env, err := fraglet.NewFragletEnvironmentFromEmbedded()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading embedded envelopes: %v\n", err)
+			os.Exit(1)
+		}
+
+		envelopeObj, ok := env.GetRegistry().GetEnvelope(*envelope)
+		if !ok {
+			fmt.Fprintf(os.Stderr, "Error: envelope not found: %s\n", *envelope)
+			os.Exit(1)
+		}
+
+		containerImage = envelopeObj.Container
+		// Use envelope's fragletPath unless overridden
+		if *fragletPath == defaultFragletPath {
+			finalFragletPath = envelopeObj.FragletPath
+		} else {
+			finalFragletPath = *fragletPath
+		}
+	} else {
+		// Use direct container image
+		containerImage = *image
+		finalFragletPath = *fragletPath
+	}
+
 	// Write code to temp file
 	tmpFile, cleanup, err := writeTempFile(code)
 	if err != nil {
@@ -56,15 +102,15 @@ func main() {
 	defer cleanup()
 
 	// Create runner
-	r := runner.NewRunner(image, "")
+	r := runner.NewRunner(containerImage, "")
 
 	// Execute with volume mount at fragletPath
 	spec := runner.RunSpec{
-		Container: image,
+		Container: containerImage,
 		Volumes: []runner.VolumeMount{
 			{
 				HostPath:      tmpFile,
-				ContainerPath: *fragletPath,
+				ContainerPath: finalFragletPath,
 				ReadOnly:      true,
 			},
 		},
@@ -111,36 +157,27 @@ func writeTempFile(content string) (string, func(), error) {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, `Usage: fragletc [flags] <image>
+	fmt.Fprintf(os.Stderr, `Usage: fragletc [flags]
 
-Execute fraglet code in the specified container image.
-
-Arguments:
-  image         Container image to use (e.g., 100hellos/python:local)
+Execute fraglet code in a container using either --image or --envelope.
 
 Flags:
-  -fraglet-path string
-        Path where code is mounted in container (default: /FRAGLET)
-  -file string
+  -e, --envelope string
+        Use embedded envelope by name (e.g., python, javascript)
+  -f, --input string
         Path to code file (if not provided, reads from STDIN)
+  -i, --image string
+        Container image to use (e.g., 100hellos/python:latest)
+  -p, --fraglet-path string
+        Path where code is mounted in container (default: /FRAGLET)
 
 Examples:
-  # Read from STDIN with default fraglet-path
-  echo "print('Hello, World!')" | fragletc 100hellos/python:local
+  # Using container image
+  echo 'print("Hello")' | fragletc --image 100hellos/python:latest
+  fragletc --image 100hellos/python:latest --input script.py
 
-  # Read from STDIN with custom fraglet-path
-  echo "print('Hello!')" | fragletc -fraglet-path /custom/path 100hellos/python:local
-
-  # Read from file with default fraglet-path
-  fragletc -file hello.py 100hellos/python:local
-
-  # Read from file with custom fraglet-path
-  fragletc -fraglet-path /FRAGLET -file hello.py 100hellos/python:local
-
-  # Pipe code
-  cat hello.py | fragletc 100hellos/python:local
-
-  # Short form with flags
-  echo "console.log('test')" | fragletc -fraglet-path /FRAGLET 100hellos/javascript:local
+  # Using embedded envelope
+  echo 'print("Hello")' | fragletc --envelope python
+  fragletc --envelope python --input script.py
 `)
 }

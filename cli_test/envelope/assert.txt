@@ -1,0 +1,12 @@
+=== Test 1: STDIN with --envelope flag ===
+Hello from envelope!
+
+=== Test 2: STDIN with short -e flag ===
+Short envelope flag!
+
+=== Test 3: File input with envelope ===
+File with envelope!
+
+=== Test 4: Envelope with custom fraglet-path ===
+Envelope custom path!
+

@@ -1,0 +1,30 @@
+=== Test 1: Missing required flag ===
+Usage: fragletc [flags]
+
+Execute fraglet code in a container using either --image or --envelope.
+
+Flags:
+  -e, --envelope string
+        Use embedded envelope by name (e.g., python, javascript)
+  -f, --input string
+        Path to code file (if not provided, reads from STDIN)
+  -i, --image string
+        Container image to use (e.g., 100hellos/python:latest)
+  -p, --fraglet-path string
+        Path where code is mounted in container (default: /FRAGLET)
+
+Examples:
+  # Using container image
+  echo 'print("Hello")' | fragletc --image 100hellos/python:latest
+  fragletc --image 100hellos/python:latest --input script.py
+
+  # Using embedded envelope
+  echo 'print("Hello")' | fragletc --envelope python
+  fragletc --envelope python --input script.py
+
+=== Test 2: Both --image and --envelope (should error) ===
+Error: cannot specify both --image and --envelope
+
+=== Test 3: Invalid envelope name ===
+Error: envelope not found: nonexistent
+
