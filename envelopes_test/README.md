@@ -21,10 +21,11 @@ envelopes_test/
 
 ### act.sh
 - Executable shell script that runs `fragletc` commands
-- The `fragletc` binary is provided by the clitest harness in the test directory
+- The `fragletc` binary is provided by the clitest harness with embedded envelopes
 - **Must use `--envelope <name>` to reference envelopes by name** (not `--image`)
-- Tests various scenarios: STDIN input, file input, different fraglet-paths
+- Keep it simple: test basic execution, multi-line code, and file input
 - Should be idempotent and clean up any temporary files
+- No need to test fraglet-path explicitly (that's part of envelope config)
 
 ### assert.txt
 - Contains the expected output from running `act.sh`
@@ -63,10 +64,11 @@ cd .. && make build-cli && cp ../fragletc . && cd <language>
 ## Example
 
 See `python/` for a complete example with:
-- STDIN input tests
-- Explicit fraglet-path tests
-- Multi-line code tests
-- File input tests
+- Basic execution (STDIN)
+- Multi-line code
+- File input
+
+The test is intentionally minimal - it just verifies the envelope works correctly by name.
 
 ## Notes
 

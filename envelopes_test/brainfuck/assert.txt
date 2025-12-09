@@ -1,0 +1,2 @@
+=== Test: Computed message output ===
+Fraglet Rules!

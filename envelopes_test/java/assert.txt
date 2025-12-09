@@ -1,0 +1,4 @@
+=== Test: WordSet operations ===
+Words ending with 'ing': 18119
+
+

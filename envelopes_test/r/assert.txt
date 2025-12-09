@@ -1,0 +1,3 @@
+=== Test: Vector processing ===
+Sum of squares: 55
+

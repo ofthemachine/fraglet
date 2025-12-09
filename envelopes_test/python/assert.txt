@@ -1,13 +1,10 @@
-=== Test 1: Simple print from STDIN using envelope name ===
-Hello from STDIN!
+=== Test 1: Basic execution ===
+Hello, Python!
 
-=== Test 2: Simple print with explicit fraglet-path ===
-Hello with explicit path!
-
-=== Test 3: Multi-line code ===
+=== Test 2: Multi-line code ===
 Hello, Fraglet!
 
-=== Test 4: Code from file ===
+=== Test 3: File input ===
 Count: 0
 Count: 1
 Count: 2

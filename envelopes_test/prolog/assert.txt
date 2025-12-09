@@ -1,0 +1,3 @@
+=== Test: Facts and queries ===
+Alice likes: chocolate
+

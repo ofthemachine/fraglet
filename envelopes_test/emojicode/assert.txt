@@ -1,0 +1,5 @@
+=== Test: Multiple outputs and conditionals ===
+Fraglet Test
+Multiple lines
+of output
+Condition is true!
