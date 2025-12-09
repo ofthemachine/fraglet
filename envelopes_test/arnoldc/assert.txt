@@ -1,0 +1,3 @@
+=== Test: Arnold Schwarzenegger quotes as code ===
+Fraglet
+Rules!

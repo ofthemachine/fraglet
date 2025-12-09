@@ -40,3 +40,5 @@ test-mcp.sh
 
 # Embedded envelopes (copied from envelopes/ for embedding)
 pkg/embed/envelopes/
+# Stamp file for Makefile tracking
+pkg/embed/envelopes/.stamp

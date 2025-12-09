@@ -9,6 +9,12 @@ import (
 	"github.com/ofthemachine/fraglet/pkg/runner"
 )
 
+const (
+	// EnvelopesDirEnvVar is the environment variable that, when set, makes the system
+	// use filesystem envelopes instead of embedded ones. This is useful for development.
+	EnvelopesDirEnvVar = "FRAGLET_ENVELOPES_DIR"
+)
+
 // FragletEnvironment executes FragletProcs with envelope configs
 type FragletEnvironment struct {
 	registry *EnvelopeRegistry
@@ -32,6 +38,20 @@ func NewFragletEnvironmentFromEmbedded() (*FragletEnvironment, error) {
 	}
 
 	return &FragletEnvironment{registry: registry}, nil
+}
+
+// NewFragletEnvironmentAuto creates an environment, checking FRAGLET_ENVELOPES_DIR first.
+// If the environment variable is set, it uses filesystem envelopes from that directory.
+// Otherwise, it falls back to embedded envelopes.
+// This allows developers to iterate on envelopes without rebuilding.
+func NewFragletEnvironmentAuto() (*FragletEnvironment, error) {
+	envelopesDir := os.Getenv(EnvelopesDirEnvVar)
+	if envelopesDir != "" {
+		// Use filesystem envelopes (development mode)
+		return NewFragletEnvironment(envelopesDir)
+	}
+	// Use embedded envelopes (production mode)
+	return NewFragletEnvironmentFromEmbedded()
 }
 
 // Execute runs a FragletProc using the specified envelope

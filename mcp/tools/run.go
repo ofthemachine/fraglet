@@ -63,17 +63,8 @@ func findEnvelopesDir() string {
 }
 
 func init() {
-	// Try embedded envelopes first, fall back to filesystem if not available
-	var env *fraglet.FragletEnvironment
-	var err error
-
-	// Try embedded envelopes first
-	env, err = fraglet.NewFragletEnvironmentFromEmbedded()
-	if err != nil {
-		// Fall back to filesystem
-		envelopesDir := findEnvelopesDir()
-		env, err = fraglet.NewFragletEnvironment(envelopesDir)
-	}
+	// Load environment (checks FRAGLET_ENVELOPES_DIR first, then embedded)
+	env, err := fraglet.NewFragletEnvironmentAuto()
 
 	if err != nil {
 		// If envelopes can't be loaded, use placeholder description
@@ -130,18 +121,10 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 	RunOutput,
 	error,
 ) {
-	// Create fraglet environment - try embedded first, fall back to filesystem
-	var env *fraglet.FragletEnvironment
-	var err error
-
-	env, err = fraglet.NewFragletEnvironmentFromEmbedded()
+	// Create fraglet environment - check FRAGLET_ENVELOPES_DIR first, then embedded
+	env, err := fraglet.NewFragletEnvironmentAuto()
 	if err != nil {
-		// Fall back to filesystem
-		envelopesDir := findEnvelopesDir()
-		env, err = fraglet.NewFragletEnvironment(envelopesDir)
-		if err != nil {
-			return nil, RunOutput{}, fmt.Errorf("failed to init environment: %w", err)
-		}
+		return nil, RunOutput{}, fmt.Errorf("failed to init environment: %w", err)
 	}
 
 	// Create FragletProc (just the code)

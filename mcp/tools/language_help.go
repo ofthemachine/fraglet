@@ -32,8 +32,7 @@ func LanguageHelp(ctx context.Context, req *mcp.CallToolRequest, input LanguageH
 	error,
 ) {
 	// Create fraglet environment to get envelope
-	envelopesDir := findEnvelopesDir()
-	env, err := fraglet.NewFragletEnvironment(envelopesDir)
+	env, err := fraglet.NewFragletEnvironmentAuto()
 	if err != nil {
 		return nil, LanguageHelpOutput{}, fmt.Errorf("failed to init environment: %w", err)
 	}

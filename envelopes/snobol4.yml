@@ -1,5 +1,5 @@
 name: snobol4
 language: snobol4
-container: 100hellos/snobol4:local
+container: 100hellos/snobol4:latest
 fragletPath: /FRAGLET
 

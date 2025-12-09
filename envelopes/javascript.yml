@@ -1,5 +1,5 @@
 name: javascript
 language: javascript
-container: 100hellos/javascript:local
+container: 100hellos/javascript:latest
 fragletPath: /FRAGLET
 

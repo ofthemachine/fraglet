@@ -1,0 +1,7 @@
+=== Test: Internet meme language ===
+Fraglet
+Rules!
+awesome
+Sum:
+30
+

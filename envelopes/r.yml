@@ -1,4 +1,4 @@
 name: r
 language: r
-container: 100hellos/r-project:local
+container: 100hellos/r-project:latest
 fragletPath: /FRAGLET

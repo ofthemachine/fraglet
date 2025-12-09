@@ -1,0 +1,6 @@
+name: arnoldc
+language: arnoldc
+container: 100hellos/arnoldc:latest
+fragletPath: /FRAGLET
+fragletConfig: /fraglet.yaml
+

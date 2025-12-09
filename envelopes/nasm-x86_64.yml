@@ -1,0 +1,6 @@
+name: nasm-x86_64
+language: nasm-x86_64
+container: 100hellos/nasm-x86_64:latest
+fragletPath: /FRAGLET
+fragletConfig: /fraglet.yaml
+

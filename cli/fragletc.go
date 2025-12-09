@@ -67,10 +67,10 @@ func main() {
 	var finalFragletPath string
 
 	if *envelope != "" {
-		// Use embedded envelope
-		env, err := fraglet.NewFragletEnvironmentFromEmbedded()
+		// Use envelope (filesystem if FRAGLET_ENVELOPES_DIR is set, otherwise embedded)
+		env, err := fraglet.NewFragletEnvironmentAuto()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading embedded envelopes: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error loading envelopes: %v\n", err)
 			os.Exit(1)
 		}
 

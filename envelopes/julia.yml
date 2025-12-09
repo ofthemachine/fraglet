@@ -1,0 +1,6 @@
+name: julia
+language: julia
+container: 100hellos/julia:latest
+fragletPath: /FRAGLET
+fragletConfig: /fraglet.yaml
+
