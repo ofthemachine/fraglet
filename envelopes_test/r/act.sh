@@ -11,3 +11,4 @@ squared <- numbers^2
 cat("Sum of squares:", sum(squared), "\n")
 EOF
 
+

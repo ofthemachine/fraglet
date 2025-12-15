@@ -12,3 +12,4 @@ likes(alice, What), write("Alice likes: "), write(What), nl.
 halt.
 EOF
 
+

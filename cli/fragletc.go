@@ -42,7 +42,6 @@ func main() {
 	}
 
 	var code string
-	var err error
 
 	// Read code from file if provided, otherwise from STDIN
 	if *input != "" {
@@ -62,9 +61,9 @@ func main() {
 		code = string(codeBytes)
 	}
 
-	// Determine container image and fraglet path
-	var containerImage string
-	var finalFragletPath string
+	ctx := context.Background()
+	var result *runner.RunResult
+	var err error
 
 	if *envelope != "" {
 		// Use envelope (filesystem if FRAGLET_ENVELOPES_DIR is set, otherwise embedded)
@@ -74,50 +73,42 @@ func main() {
 			os.Exit(1)
 		}
 
-		envelopeObj, ok := env.GetRegistry().GetEnvelope(*envelope)
-		if !ok {
-			fmt.Fprintf(os.Stderr, "Error: envelope not found: %s\n", *envelope)
-			os.Exit(1)
-		}
-
-		containerImage = envelopeObj.Container
-		// Use envelope's fragletPath unless overridden
-		if *fragletPath == defaultFragletPath {
-			finalFragletPath = envelopeObj.FragletPath
-		} else {
-			finalFragletPath = *fragletPath
-		}
+		// Use FragletEnvironment.Execute() to respect all envelope settings
+		// including fragletConfig, fragletPath, etc.
+		proc := fraglet.NewFragletProc(code)
+		result, err = env.Execute(ctx, *envelope, proc)
 	} else {
 		// Use direct container image
-		containerImage = *image
-		finalFragletPath = *fragletPath
-	}
+		containerImage := *image
+		finalFragletPath := *fragletPath
 
-	// Write code to temp file
-	tmpFile, cleanup, err := writeTempFile(code)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating temp file: %v\n", err)
-		os.Exit(1)
-	}
-	defer cleanup()
+		// Write code to temp file
+		tmpFile, cleanup, err := writeTempFile(code)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating temp file: %v\n", err)
+			os.Exit(1)
+		}
+		defer cleanup()
 
-	// Create runner
-	r := runner.NewRunner(containerImage, "")
+		// Create runner
+		r := runner.NewRunner(containerImage, "")
 
-	// Execute with volume mount at fragletPath
-	spec := runner.RunSpec{
-		Container: containerImage,
-		Volumes: []runner.VolumeMount{
-			{
-				HostPath:      tmpFile,
-				ContainerPath: finalFragletPath,
-				ReadOnly:      true,
+		// Execute with volume mount at fragletPath
+		spec := runner.RunSpec{
+			Container: containerImage,
+			Volumes: []runner.VolumeMount{
+				{
+					HostPath:      tmpFile,
+					ContainerPath: finalFragletPath,
+					ReadOnly:      true,
+				},
 			},
-		},
-	}
+		}
 
-	ctx := context.Background()
-	result, err := r.Run(ctx, spec)
+		runResult, runErr := r.Run(ctx, spec)
+		result = &runResult
+		err = runErr
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Execution failed: %v\n", err)
 		os.Exit(1)

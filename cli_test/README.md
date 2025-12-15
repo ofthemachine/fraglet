@@ -59,3 +59,4 @@ go test -tags=integration -v .
 - **cli_test**: Tests the CLI tool itself with direct container images and embedded envelopes
 - **envelopes_test**: Tests envelope correctness by name (uses embedded envelopes only)
 
+

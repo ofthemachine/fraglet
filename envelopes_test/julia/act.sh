@@ -13,3 +13,4 @@ println("Sum: ", sum_val)
 println("Product: ", prod(arr))
 EOF
 
+

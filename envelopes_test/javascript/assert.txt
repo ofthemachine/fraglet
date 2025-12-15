@@ -1,3 +1,4 @@
 === Test: Array processing with reduce ===
 Sum of squares: 55
 
+

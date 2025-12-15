@@ -11,3 +11,4 @@ squared = numbers.map { |x| x**2 }
 puts "Sum of squares: #{squared.sum}"
 EOF
 
+

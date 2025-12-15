@@ -10,3 +10,4 @@ Custom path!
 === Test 4: STDIN with short -p flag ===
 Short path flag!
 
+

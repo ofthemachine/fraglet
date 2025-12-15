@@ -12,3 +12,4 @@ const sum = squared.reduce((a, b) => a + b, 0);
 console.log(`Sum of squares: ${sum}`);
 EOF
 
+

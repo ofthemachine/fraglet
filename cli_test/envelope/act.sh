@@ -23,3 +23,4 @@ echo ""
 echo "=== Test 4: Envelope with custom fraglet-path ==="
 echo 'print("Envelope custom path!")' | "$FRAGLETC" -e python --fraglet-path /FRAGLET
 
+

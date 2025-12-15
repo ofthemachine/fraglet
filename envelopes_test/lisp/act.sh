@@ -11,3 +11,4 @@ cat <<'EOF' | "$FRAGLETC" --envelope lisp
     (format t "Sum of squares: ~a~%" (reduce #'+ squared))))
 EOF
 
+
