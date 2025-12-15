@@ -1,0 +1,5 @@
+name: awk
+language: awk
+container: 100hellos/awk:latest
+fragletPath: /FRAGLET
+
