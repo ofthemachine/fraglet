@@ -45,6 +45,7 @@ type RunSpec struct {
 	Stdin      string        // Optional stdin input
 	Container  string        // Optional container image (e.g., "python:3.11-slim")
 	Entrypoint string        // Optional entrypoint (e.g., "python" for multiline scripts)
+	Platform   string        // Optional platform (e.g., linux/amd64). Defaults to linux/amd64.
 	Env        []string      // Optional environment variables (for ENVVAR input)
 	WorkDir    string        // Optional working directory
 	Volumes    []VolumeMount // Optional volume mounts

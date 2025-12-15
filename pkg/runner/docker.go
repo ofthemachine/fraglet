@@ -38,6 +38,17 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 		return nil, fmt.Errorf("docker runner requires container image")
 	}
 
+	// Default platform to linux/amd64 unless explicitly set
+	platform := spec.Platform
+	if platform == "" {
+		platform = "linux/amd64"
+	}
+
+	// Ensure image exists locally; if not, pull it for the requested platform
+	if err := ensureDockerImage(ctx, spec.Container, platform); err != nil {
+		return nil, err
+	}
+
 	stdoutChan := make(chan string, 10)
 	stderrChan := make(chan string, 10)
 	doneChan := make(chan error, 1)
@@ -49,7 +60,7 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 	var cmdArgs []string
 
 	// Start building docker run command
-	cmdArgs = append(cmdArgs, "docker", "run", "--rm", "-i")
+	cmdArgs = append(cmdArgs, "docker", "run", "--rm", "-i", "--platform", platform)
 
 	// If volumes are specified and command is empty, use container's default entrypoint
 	// This is for fragment injection patterns where the container handles execution
@@ -88,21 +99,21 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 			// Mount temp file into container and execute via entrypoint
 			// Use --entrypoint flag to override container's default entrypoint
 			// Use /tmp/script (generic name, no extension) - entrypoint determines how to execute
-			dockerCmd = exec.CommandContext(ctx, "docker", "run", "--rm", "-i",
+			dockerCmd = exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "--platform", platform,
 				"--entrypoint", spec.Entrypoint,
 				"-v", fmt.Sprintf("%s:/tmp/script:ro", tempFile),
 				spec.Container,
 				"/tmp/script")
 		} else {
 			// Shebang present but no entrypoint - execute script directly (shebang will be honored)
-			dockerCmd = exec.CommandContext(ctx, "docker", "run", "--rm", "-i",
+			dockerCmd = exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "--platform", platform,
 				"-v", fmt.Sprintf("%s:/tmp/script:ro", tempFile),
 				spec.Container,
 				"/tmp/script")
 		}
 	} else {
 		// No entrypoint and no shebang - use sh -c
-		dockerCmd = exec.CommandContext(ctx, "docker", "run", "--rm", "-i",
+		dockerCmd = exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "--platform", platform,
 			spec.Container,
 			"sh", "-c", spec.Command)
 	}
@@ -225,4 +236,18 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 		Done:     doneChan,
 		ExitCode: exitCodeChan,
 	}, nil
+}
+
+// ensureDockerImage checks if the image exists locally; if not, it pulls it for the given platform.
+func ensureDockerImage(ctx context.Context, image, platform string) error {
+	inspect := exec.CommandContext(ctx, "docker", "image", "inspect", image)
+	if err := inspect.Run(); err == nil {
+		return nil // already present
+	}
+	// Pull with platform
+	pull := exec.CommandContext(ctx, "docker", "pull", "--platform", platform, image)
+	if out, err := pull.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to pull image %s: %v\n%s", image, err, string(out))
+	}
+	return nil
 }
