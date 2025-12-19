@@ -1,0 +1,16 @@
+---
+title: How to Enable a Language for Fraglets
+description: Complete guide for enabling fraglet support in a language container, including configuration, testing with fragletc, and verification steps
+tags:
+    - domain:fraglet
+    - scope:container-setup
+    - scope:testing
+    - tool:fragletc
+    - type:recipe
+---
+## Additions (2025-12-17)
+- Prefer range-based injection (`match_start`/`match_end`) for languages where authors commonly need multi-line blocks, functions, modules, or classes (e.g., AWK, PHP, Elixir, TypeScript wrappers). Single-line `match` is fine only for trivial one-liners.
+- Author-facing guides must not talk about internal markers or file wiring. Tell authors to "write normal code"; the fragment becomes the script body. Keep marker/wrapper details internal to the container maintainer.
+- AWK: functions must live outside `BEGIN`; use range-based injection so fragments can include both function definitions and a `BEGIN { ... }` execution block. Show examples with function + BEGIN.
+- PHP/Elixir: range-based injection enables functions/classes/modules; guides should show normal code examples, not markers.
+- When you switch to range-based, ensure `hello-world.*` contains clear `BEGIN_FRAGLET`/`END_FRAGLET` (or language-appropriate comment markers) and set `fraglet.yml` to `match_start`/`match_end` accordingly.

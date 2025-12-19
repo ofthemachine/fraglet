@@ -1,0 +1,400 @@
+---
+title: Adding Fraglet Support to a Container
+description: Step-by-step guide for converting a 000-base container to 001-base with fraglet support, including configuration, guide creation, and testing procedures
+tags:
+    - type:recipe
+    - domain:fraglet
+    - scope:container-setup
+---
+# Adding Fraglet Support to a Container
+
+## Overview
+
+This guide walks through adding fraglet support to a language container that currently uses `000-base`. Fraglets enable dynamic code injection and execution, making containers interactive and programmable.
+
+## Prerequisites
+
+- Container currently uses `FROM 100hellos/000-base:local`
+- Language has a simple execution model (interpreted or easily scriptable)
+- You understand the language's execution context and requirements
+
+## Step-by-Step Process
+
+### 1. Update Dockerfile
+
+Change the base image from `000-base` to `001-base` and add fraglet directory copy:
+
+```dockerfile
+# Before:
+FROM 100hellos/000-base:local
+
+# After:
+FROM 100hellos/001-base:local
+
+# Add at the end (after COPY files):
+COPY --chown=human:human ./fraglet /
+```
+
+### 2. Create fraglet Directory Structure
+
+Create the `fraglet/` directory in your language container:
+
+```bash
+mkdir -p <language>/fraglet
+```
+
+### 3. Create fraglet.yml Configuration
+
+Create `fraglet/fraglet.yml` with language-specific configuration. Here's a complete example with verbose descriptions:
+
+```yaml
+# fraglet configuration
+# This file configures how fraglets are injected and executed within a container.
+
+# Temporary location where the fraglet code is written before injection
+# The fraglet code is read from this path and injected into the target file
+#
+# *** IMPORTANT ***
+# This is the interface between the fraglet and the container, and users of
+# fraglet compatible containers must mount this path to the fraglet code.
+#
+# Default: /FRAGLET
+fragletTempPath: /FRAGLET
+
+# Injection configuration: how fraglet code is inserted into the target file
+injection:
+  # Full path to the target file where fraglet code will be injected
+  codePath: /hello-world/hello-world.<ext>
+
+  # Injection marker: the fraglet code replaces the entire line containing this string
+  # The matched line is completely replaced with the fraglet code (indentation preserved)
+  # For region-based injection, use match_start and match_end instead
+  # Default: FRAGLET
+  match: Hello World
+
+  # Alternative: region-based injection (both must be specified together)
+  # match_start: "# BEGIN_FRAGLET"
+  # match_end: "# END_FRAGLET"
+  # All lines from match_start through match_end (inclusive) are replaced with fraglet code
+  # Use this when you need to replace a multi-line block or have more control
+
+# Path to guide markdown file (displayed via "guide" command)
+# The file is first checked at this absolute path, then in the directory containing codePath
+# This contains authoring guidance for writing fraglets (language patterns, code format, etc.)
+guide: /guide.md
+
+# Execution configuration: how the code is executed after injection
+execution:
+  # Command/path to execute. If specified, executes: path [args...]
+  # If omitted, executes: args[0] [args[1:]...] (treats command-line args as the command)
+  #
+  # Examples:
+  #   path: /path/to/target-script.sh
+  #     → Executes: /path/to/target-script.sh [all command-line args]
+  #
+  #   path: python /path/to/script.py
+  #     → Executes: python /path/to/script.py [all command-line args]
+  #
+  #   path: (omitted)
+  #     → Executes: [first arg] [remaining args...]
+  #     → Example: entrypoint ls -la → executes: ls -la
+  path: /hello-world/hello-world.<ext>
+
+  # Whether to make the execution path executable (default: true)
+  # Note: If executing a file directly (not via interpreter), this MUST be true
+  # or execution will fail. Set to false only when using interpreter commands
+  # like "python /path/to/script.py" or "bash /path/to/script.sh"
+  makeExecutable: true
+```
+
+**Configuration Details:**
+
+- **`fragletTempPath`**: Always `/FRAGLET` (standard). This is where users mount their fragment files. The entrypoint reads from this path.
+
+- **`injection.codePath`**: Full path to your hello-world file where fragments will be injected.
+
+- **`injection.match`**: Single-line injection marker. The entire line containing this string is replaced with the fraglet code. Indentation is preserved. Use this for simple single-line replacements.
+
+- **`injection.match_start` / `injection.match_end`**: Region-based injection (use both together). All lines from `match_start` through `match_end` (inclusive) are replaced with the fraglet code. Useful for:
+  - Multi-line code blocks
+  - Languages that need specific block structures
+  - More precise control over what gets replaced
+  - Example: Replacing a function body or a specific code region
+
+- **`guide`**: Path to the guide.md file (always `/guide.md`). Contains language-specific fraglet authoring guidance.
+
+- **`execution.path`**: How to execute the file after injection:
+  - For shebang files: `/hello-world/hello-world.<ext>` with `makeExecutable: true`
+  - For interpreted languages: `<interpreter> /hello-world/hello-world.<ext>` with `makeExecutable: false`
+  - For wrapper scripts: `/hello-world/hello-world.sh` with `makeExecutable: true`
+
+- **`execution.makeExecutable`**: Whether to make the file executable. Must be `true` if executing directly, `false` if using an interpreter command.
+
+### 4. Create guide.md
+
+Create `fraglet/guide.md` with language-specific fraglet authoring guidance:
+
+```markdown
+# <Language> Fraglet Guide
+
+## Language Version
+<Version info>
+
+## Execution Model
+- <How code executes>
+- <Execution context details>
+
+## Key Characteristics
+- <Language-specific syntax rules>
+- <Important language features>
+
+## Fragment Authoring
+<How to write fragments for this language>
+<What gets injected and where>
+
+## Available Packages
+<What libraries/packages are available>
+<How to use them>
+
+## Common Patterns
+- <Common code patterns>
+- <Example snippets>
+
+## Examples
+\`\`\`<lang>
+<Example code>
+\`\`\`
+
+## Caveats
+<Important warnings or gotchas>
+<Idempotency considerations>
+```
+
+**Guide Content Guidelines:**
+- Focus on fraglet authoring, not container usage
+- Include language version and execution model
+- Document syntax rules and key characteristics
+- Provide practical examples
+- Note any caveats or gotchas
+- Keep it concise but comprehensive
+
+### 5. Update hello-world File (if needed)
+
+Ensure your `files/hello-world.<ext>` file:
+- Contains the match string (for single-line injection) or match markers (for region-based injection)
+- Is in the correct location (`/hello-world/` in container)
+- Has proper shebang if it's an executable script
+
+**Example for single-line injection (Python):**
+```python
+#!/usr/bin/env python3
+
+if __name__ == "__main__":
+  print("Hello World!")
+```
+
+**Example for region-based injection (Python with function):**
+```python
+#!/usr/bin/env python3
+
+def main():
+    # BEGIN_FRAGLET
+    print("Hello World!")
+    # END_FRAGLET
+
+if __name__ == "__main__":
+    main()
+```
+
+**Example for interpreted language with wrapper:**
+```bash
+#!/usr/bin/env sh
+<interpreter> <args> hello-world.<ext>
+```
+
+**Choosing between single-line and region-based injection:**
+- **Single-line (`match`)**: Use when you can replace a single line or when the language allows it
+- **Region-based (`match_start`/`match_end`)**: Use when you need to replace a code block, function body, or preserve surrounding structure
+
+### 6. Test the Container
+
+Build and test the container:
+
+```bash
+# Build
+make <language>
+
+# Test default execution
+docker run --rm 100hellos/<language>:local
+
+# Test fraglet injection
+echo 'your code here' > test-fragment.txt
+docker run --rm -v $(pwd)/test-fragment.txt:/code-fragments/MAIN 100hellos/<language>:local
+
+# Test guide command
+docker run --rm 100hellos/<language>:local guide
+
+# Test how-to command (generated dynamically)
+docker run --rm 100hellos/<language>:local how-to
+```
+
+### 7. Verify Git Diff
+
+Ensure your changes match the canonical pattern. Compare with an existing fraglet container:
+
+```bash
+git diff e2460c559db -- <language>/
+```
+
+Should show:
+- `M` Dockerfile (changed FROM and added COPY fraglet)
+- `A` fraglet/fraglet.yml
+- `A` fraglet/guide.md
+- No changes to files/hello-world.* (unless fixing issues)
+
+## Common Patterns by Language Type
+
+### Interpreted Languages (Python, Ruby, Lua, etc.)
+
+```yaml
+injection:
+  codePath: /hello-world/hello-world.<ext>
+  match: Hello World
+
+execution:
+  path: /hello-world/hello-world.<ext>
+  makeExecutable: true
+```
+
+### Languages Requiring Interpreter Command
+
+```yaml
+injection:
+  codePath: /hello-world/hello-world.<ext>
+  match: Hello World
+
+execution:
+  path: <interpreter> /hello-world/hello-world.<ext>
+  makeExecutable: false
+```
+
+Example (R):
+```yaml
+injection:
+  codePath: /hello-world/hello-world.r
+  match: Hello World
+
+execution:
+  path: Rscript /hello-world/hello-world.r
+  makeExecutable: false
+```
+
+### Languages Requiring Wrapper Script
+
+Some languages need a shell wrapper (like Prolog, Lisp):
+
+```yaml
+injection:
+  codePath: /hello-world/hello-world.<ext>
+  match: Hello World
+
+execution:
+  path: /hello-world/hello-world.sh
+  makeExecutable: true
+```
+
+Wrapper script example:
+```bash
+#!/usr/bin/env sh
+<interpreter> <flags> /hello-world/hello-world.<ext>
+```
+
+### Region-Based Injection Pattern
+
+For languages that need multi-line blocks or more precise control, use `match_start` and `match_end`:
+
+```yaml
+injection:
+  codePath: /hello-world/hello-world.<ext>
+  match_start: "# BEGIN_FRAGLET"
+  match_end: "# END_FRAGLET"
+
+execution:
+  path: /hello-world/hello-world.<ext>
+  makeExecutable: true
+```
+
+Example hello-world file:
+```python
+#!/usr/bin/env python3
+
+def main():
+    # BEGIN_FRAGLET
+    print("Hello World!")
+    # END_FRAGLET
+
+if __name__ == "__main__":
+    main()
+```
+
+The fraglet code will replace everything between `# BEGIN_FRAGLET` and `# END_FRAGLET` (inclusive).
+
+**When to use region-based injection:**
+- Languages that require specific block structures (functions, classes, etc.)
+- When you need to preserve surrounding code structure
+- When single-line replacement would break syntax
+- For more complex code organization
+
+## Troubleshooting
+
+### Fragment Not Injecting
+
+- Check that `injection.match` string exists in your hello-world file (for single-line injection)
+- Or verify both `injection.match_start` and `injection.match_end` exist (for region-based injection)
+- Verify the match string(s) are on their own line(s) (or with only whitespace)
+- Ensure `injection.codePath` points to the correct file
+- For region-based injection, ensure `match_start` appears before `match_end` in the file
+
+### Execution Fails
+
+- Check file permissions (`makeExecutable` setting)
+- Verify interpreter path is correct
+- Test the execution command manually in the container
+
+### Guide Not Displaying
+
+- Verify `guide.md` exists in `fraglet/` directory
+- Check file permissions
+- Ensure `guide: /guide.md` in fraglet.yml
+
+## Reference Examples
+
+See these containers for reference:
+- **python** - Simple interpreted language
+- **ruby** - Interpreted with shebang
+- **lua** - Interpreted with interpreter command
+- **r-project** - R with Rscript
+- **prolog** - Wrapper script pattern
+- **lisp** - Wrapper script with SBCL
+
+## Checklist
+
+- [ ] Dockerfile updated to use `001-base`
+- [ ] `COPY --chown=human:human ./fraglet /` added to Dockerfile
+- [ ] `fraglet/fraglet.yml` created with correct configuration
+- [ ] `fraglet/guide.md` created with language-specific guidance
+- [ ] `files/hello-world.<ext>` contains match string
+- [ ] Container builds successfully
+- [ ] Default execution works
+- [ ] Fragment injection works
+- [ ] `guide` command works
+- [ ] `how-to` command works
+- [ ] Git diff matches canonical pattern
+
+## Next Steps
+
+After adding fraglet support:
+1. Test thoroughly with various fragment types
+2. Update any documentation
+3. Consider adding to CI/CD if needed
+4. Mark as complete in FRAGLET_TODO.md

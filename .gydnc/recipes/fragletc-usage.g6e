@@ -1,0 +1,485 @@
+---
+title: Using fragletc to Test Fraglet Containers
+description: Guide for fraglet-enablers on using fragletc CLI to directly test and debug fraglet containers without envelope configuration
+tags:
+    - audience:fraglet-enabler
+    - domain:fraglet
+    - scope:container-setup
+    - scope:testing
+    - tool:fragletc
+    - type:recipe
+---
+# Using fragletc to Test Fraglet Containers
+
+## Overview
+
+`fragletc` is a CLI tool that executes fraglet code directly in container images, bypassing the envelope/discovery system. It's essential for **fraglet-enablers** who are adding fraglet support to containers and need to test their work without envelope configuration.
+
+## Why fragletc Matters for Fraglet-Enablers
+
+When adding fraglet support to a container, you need to test:
+- Code injection at the fraglet path
+- Container execution behavior
+- Different fraglet-path configurations
+- Edge cases and error handling
+- **All examples in guide.md** - every example should be tested with fragletc
+
+`fragletc` lets you test these directly using the container image and fraglet-path, without needing to:
+- Create or modify envelope YAML files
+- Understand the envelope registry system
+- Set up MCP server configuration
+
+## Installation
+
+Build from source:
+```bash
+cd /path/to/fraglet
+make build-cli
+# Binary created at: ./fragletc
+```
+
+Or install to GOBIN:
+```bash
+make install-cli
+# Installed to: $(go env GOBIN)/fragletc
+```
+
+## Usage
+
+### Basic Syntax
+
+```bash
+fragletc [flags] <image>
+```
+
+**Arguments:**
+- `image` (required): Container image to use (e.g., `100hellos/python:local`)
+
+**Flags:**
+- `-fraglet-path string`: Path where code is mounted in container (default: `/FRAGLET`)
+- `-file string`: Path to code file (if not provided, reads from STDIN)
+
+**Important:** Always use the `-fraglet-path` flag explicitly, even when using the default `/FRAGLET`. This makes the command unambiguous and more robust.
+
+### Common Patterns
+
+#### 1. Test with STDIN (Explicit Fraglet Path)
+
+```bash
+echo 'print("Hello, World!")' | fragletc -fraglet-path /FRAGLET 100hellos/python:local
+```
+
+Always specify `-fraglet-path /FRAGLET` explicitly for clarity and robustness.
+
+#### 2. Test with STDIN (Custom Fraglet Path)
+
+```bash
+echo 'print("Hello!")' | fragletc -fraglet-path /custom/path 100hellos/python:local
+```
+
+Use this when testing containers that use non-standard fraglet paths.
+
+#### 3. Test with File (Explicit Fraglet Path)
+
+```bash
+fragletc -fraglet-path /FRAGLET -file hello.py 100hellos/python:local
+```
+
+Reads code from the specified file using the explicit fraglet-path.
+
+#### 4. Multi-line Code
+
+```bash
+cat <<EOF | fragletc -fraglet-path /FRAGLET 100hellos/python:local
+def hello():
+    print("Hello from function!")
+hello()
+EOF
+```
+
+#### 5. Pipe Code
+
+```bash
+cat script.py | fragletc -fraglet-path /FRAGLET 100hellos/python:local
+```
+
+Works with any command that outputs to stdout.
+
+## Language-Specific Examples
+
+### Interpreted Languages (JavaScript, Python, Ruby, etc.)
+
+```bash
+# JavaScript
+echo 'console.log("Hello, World!")' | fragletc -fraglet-path /FRAGLET 100hellos/javascript:local
+
+# Python
+echo 'print("Hello, World!")' | fragletc -fraglet-path /FRAGLET 100hellos/python:local
+```
+
+### Compiled Languages (TypeScript, NASM, etc.)
+
+```bash
+# TypeScript (compiles then runs)
+echo 'console.log("Hello, World!")' | fragletc -fraglet-path /FRAGLET 100hellos/typescript:local
+
+# NASM x86_64 (assembles, links, then runs)
+cat <<EOF | fragletc -fraglet-path /FRAGLET 100hellos/nasm-x86_64:local
+          mov       rax, 1
+          mov       rdi, 1
+          mov       rsi, message
+          mov       rdx, 13
+          syscall
+          mov       rax, 60
+          xor       rdi, rdi
+          syscall
+EOF
+```
+
+### Esoteric Languages (LOLCODE, ArnoldC, etc.)
+
+```bash
+# LOLCODE
+echo 'VISIBLE "Hello, World!"' | fragletc -fraglet-path /FRAGLET 100hellos/lolcode:local
+
+# ArnoldC
+cat <<EOF | fragletc -fraglet-path /FRAGLET 100hellos/arnoldc:local
+  TALK TO THE HAND "Hello, World!"
+EOF
+```
+
+### Scientific Computing (Julia, Octave, R)
+
+```bash
+# Julia
+echo 'println("Hello, World!")' | fragletc -fraglet-path /FRAGLET 100hellos/julia:local
+
+# Octave
+echo 'printf("Hello, World!\n");' | fragletc -fraglet-path /FRAGLET 100hellos/octave:local
+
+# R
+echo 'print("Hello, World!")' | fragletc -fraglet-path /FRAGLET 100hellos/r-project:local
+```
+
+## Testing Workflow for Fraglet-Enablers
+
+### Step 1: Build Your Container
+
+```bash
+cd /path/to/language-container
+make <language>
+```
+
+### Step 2: Test Basic Execution
+
+```bash
+# Test that the container runs with default behavior
+docker run --rm 100hellos/<language>:local
+
+# Test with fragletc using STDIN (always use -fraglet-path flag)
+echo 'your test code' | fragletc -fraglet-path /FRAGLET 100hellos/<language>:local
+```
+
+### Step 3: Verify Fraglet Path Configuration
+
+Check your `fraglet/fraglet.yml` to see what `fragletTempPath` is set to:
+
+```yaml
+fragletTempPath: /FRAGLET  # or custom path
+```
+
+Test with that exact path:
+
+```bash
+# If using default /FRAGLET (always specify explicitly)
+echo 'test code' | fragletc -fraglet-path /FRAGLET 100hellos/<language>:local
+
+# If using custom path
+echo 'test code' | fragletc -fraglet-path /custom/path 100hellos/<language>:local
+```
+
+### Step 4: Test All guide.md Examples
+
+**Critical:** Test every example from your `fraglet/guide.md` file with fragletc:
+
+```bash
+# Example 1 from guide.md
+echo 'example code 1' | fragletc -fraglet-path /FRAGLET 100hellos/<language>:local
+
+# Example 2 from guide.md
+cat <<EOF | fragletc -fraglet-path /FRAGLET 100hellos/<language>:local
+example code 2
+EOF
+
+# Example 3 from guide.md
+cat <<EOF | fragletc -fraglet-path /FRAGLET 100hellos/<language>:local
+example code 3
+EOF
+```
+
+**Every example in guide.md must be tested and verified to work.**
+
+### Step 5: Test Different Code Patterns
+
+```bash
+# Test simple code
+echo 'print("simple")' | fragletc -fraglet-path /FRAGLET 100hellos/python:local
+
+# Test multi-line code
+cat <<EOF | fragletc -fraglet-path /FRAGLET 100hellos/python:local
+def hello():
+    print("Hello from function!")
+hello()
+EOF
+
+# Test from file
+cat > test.py <<EOF
+for i in range(3):
+    print(f"Count: {i}")
+EOF
+fragletc -fraglet-path /FRAGLET -file test.py 100hellos/python:local
+```
+
+### Step 6: Test Error Cases
+
+```bash
+# Test syntax errors
+echo 'print("unclosed string)' | fragletc -fraglet-path /FRAGLET 100hellos/python:local
+
+# Test runtime errors
+echo '1/0' | fragletc -fraglet-path /FRAGLET 100hellos/python:local
+
+# Verify exit codes are preserved
+echo 'import sys; sys.exit(42)' | fragletc -fraglet-path /FRAGLET 100hellos/python:local
+echo "Exit code: $?"  # Should show 42
+```
+
+## Language-Specific Considerations
+
+### Indentation Requirements
+
+Some languages require specific indentation:
+
+```bash
+# SNOBOL4 requires 8 spaces
+echo '        OUTPUT = "Hello, World!"' | fragletc -fraglet-path /FRAGLET 100hellos/snobol4:local
+
+# ArnoldC requires 2 spaces for statements inside IT'S SHOWTIME
+cat <<EOF | fragletc -fraglet-path /FRAGLET 100hellos/arnoldc:local
+  TALK TO THE HAND "Hello, World!"
+EOF
+```
+
+### Match String Preservation
+
+**Critical:** Always preserve the exact match string from the original hello-world file. Never change `"Hello World!"` to `"Hello World"` - this breaks the match.
+
+### Wrapper Scripts
+
+Languages that use wrapper scripts (TypeScript, NASM, Octave, etc.) require the wrapper to `cd /hello-world` before execution. Test that the wrapper works:
+
+```bash
+# Test wrapper script execution
+docker run --rm 100hellos/<language>:local
+```
+
+## Key Differences from Envelope-Based Execution
+
+| Aspect | fragletc | Envelope System |
+|--------|----------|-----------------|
+| **Configuration** | Direct image + fraglet-path | Envelope YAML with name/language |
+| **Use Case** | Testing, debugging, direct execution | Discovery, MCP integration |
+| **Flexibility** | Any image, any fraglet-path | Pre-configured envelopes only |
+| **Setup** | None required | Envelope must exist in registry |
+| **Image Format** | `100hellos/<language>:local` | Language name lookup |
+
+## Debugging Tips
+
+### Check Container Logs
+
+If execution fails, check what the container actually received:
+
+```bash
+# Run container interactively to inspect
+docker run --rm -it -v /tmp/test.py:/FRAGLET:ro 100hellos/python:local sh
+# Inside container:
+cat /FRAGLET
+```
+
+### Verify Fraglet Path
+
+Ensure the fraglet-path matches your `fraglet.yml` configuration:
+
+```bash
+# Check fraglet.yml
+docker run --rm 100hellos/python:local cat /fraglet/fraglet.yml | grep fragletTempPath
+
+# Test with that exact path (always use -fraglet-path flag)
+echo 'test' | fragletc -fraglet-path /FRAGLET 100hellos/python:local
+```
+
+### Test Entrypoint Behavior
+
+Some containers use fraglet-entrypoint, others use bare containers. Test both:
+
+```bash
+# Test with default (should use entrypoint if configured)
+echo 'test' | fragletc -fraglet-path /FRAGLET 100hellos/python:local
+
+# If entrypoint expects specific behavior, verify it
+docker run --rm 100hellos/python:local usage
+docker run --rm 100hellos/python:local guide
+```
+
+### Check Match String
+
+Verify the match string exists in the hello-world file:
+
+```bash
+# Check the match string
+docker run --rm 100hellos/<language>:local cat /hello-world/hello-world.* | grep -i "hello world"
+```
+
+## Integration with Development Workflow
+
+### Quick Test Script
+
+Create a test script for rapid iteration:
+
+```bash
+#!/bin/bash
+# test-fraglet.sh
+
+IMAGE="100hellos/python:local"
+FRAGLET_PATH="/FRAGLET"
+
+echo "Testing fraglet container: $IMAGE"
+echo "---"
+
+echo "Test 1: Simple print"
+echo 'print("Hello!")' | fragletc -fraglet-path "$FRAGLET_PATH" "$IMAGE"
+
+echo -e "\nTest 2: Function"
+cat <<EOF | fragletc -fraglet-path "$FRAGLET_PATH" "$IMAGE"
+def test():
+    return "Function works!"
+print(test())
+EOF
+
+echo -e "\nTest 3: Error handling"
+echo '1/0' | fragletc -fraglet-path "$FRAGLET_PATH" "$IMAGE" 2>&1 | head -3
+```
+
+### Test All guide.md Examples
+
+Create a script to test all examples from guide.md:
+
+```bash
+#!/bin/bash
+# test-guide-examples.sh
+
+IMAGE="100hellos/<language>:local"
+FRAGLET_PATH="/FRAGLET"
+
+echo "Testing all guide.md examples for $IMAGE"
+echo "---"
+
+# Example 1
+echo "Example 1: Simple output"
+echo 'example code 1' | fragletc -fraglet-path "$FRAGLET_PATH" "$IMAGE"
+
+# Example 2
+echo -e "\nExample 2: Function"
+cat <<EOF | fragletc -fraglet-path "$FRAGLET_PATH" "$IMAGE"
+example code 2
+EOF
+
+# Continue for all examples...
+```
+
+### CI/CD Integration
+
+Use `fragletc` in CI to verify fraglet support:
+
+```yaml
+# .github/workflows/test-fraglet.yml
+- name: Test fraglet support
+  run: |
+    echo 'print("CI test")' | fragletc -fraglet-path /FRAGLET 100hellos/${matrix.language}:local
+```
+
+## Common Issues and Solutions
+
+### Issue: "Execution failed: container not found" or "envelope not found"
+
+**Solution:** Ensure you're using the `100hellos/<language>:local` image format and the container is built:
+```bash
+docker images | grep 100hellos/<language>
+# If missing, build it
+make <language>
+```
+
+### Issue: Code executes but produces no output
+
+**Solution:** Check if the container's entrypoint is configured correctly. Test the container directly:
+```bash
+docker run --rm 100hellos/<language>:local
+```
+
+### Issue: Wrong fraglet-path
+
+**Solution:** Always use the `-fraglet-path` flag explicitly. Verify the path in `fraglet/fraglet.yml`:
+```bash
+# Check config
+docker run --rm 100hellos/<language>:local cat /fraglet/fraglet.yml
+
+# Use exact path from config with explicit flag
+echo 'test' | fragletc -fraglet-path /FRAGLET 100hellos/<language>:local
+```
+
+### Issue: Indentation errors
+
+**Solution:** Some languages require specific indentation. Check the language's guide.md for requirements:
+- SNOBOL4: 8 spaces
+- ArnoldC: 2 spaces for statements
+- Python: 4 spaces (standard)
+
+### Issue: Match string not found
+
+**Solution:** Verify the match string exists exactly as specified in fraglet.yml:
+```bash
+# Check the match string in the file
+docker run --rm 100hellos/<language>:local cat /hello-world/hello-world.* | grep -i "hello world"
+```
+
+**Critical:** Never change the match string (e.g., `"Hello World!"` to `"Hello World"`) - this breaks injection.
+
+## Best Practices
+
+1. **Always use `-fraglet-path /FRAGLET` flag explicitly** - even for the default path, this makes commands unambiguous
+2. **Test all guide.md examples** - every example in the guide should be tested with fragletc
+3. **Use `100hellos/<language>:local` image format** - this is the standard for local testing
+4. **Test both STDIN and file input** - ensure both work (use `-file` flag for file input)
+5. **Verify exit codes** - are preserved correctly
+6. **Test error cases** - ensure proper error handling
+7. **Use fragletc before creating envelope** - get the container working first
+8. **Keep test code simple** - focus on verifying fraglet mechanics, not complex logic
+9. **Preserve match strings exactly** - never modify the original match string
+10. **Check language-specific requirements** - indentation, syntax, etc.
+
+## Related Guidance
+
+- `recipes/fraglet/enable-language` - How to enable fraglet support in a language container
+- `recipes/fraglet/add-support` - Alternative guide for adding fraglet support
+- `should/meta/cli-design-standards` - CLI design patterns (fragletc follows these)
+
+## Summary
+
+`fragletc` is the direct path to testing fraglet containers. For fraglet-enablers, it's the fastest way to:
+- Verify fraglet-path configuration
+- Test code injection and execution
+- Debug container behavior
+- Iterate quickly during development
+- **Test all guide.md examples** - critical for quality
+
+The tool uses explicit flags (`-fraglet-path` and `-file`) for clarity and robustness. Always use `-fraglet-path /FRAGLET` explicitly, even for the default path. Use the `100hellos/<language>:local` image format for local testing. Test every example in your guide.md file to ensure they all work correctly.
