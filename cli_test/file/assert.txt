@@ -1,7 +1,7 @@
-=== Test 1: File input with --input flag ===
+=== Test 1: File input with --image flag ===
 Hello from file!
 
-=== Test 2: File input with short -f flag ===
+=== Test 2: File input with short -i flag ===
 Count: 0
 Count: 1
 Count: 2

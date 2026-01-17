@@ -4,7 +4,7 @@ import "fmt"
 
 // Vein defines an injection point for fraglet code
 type Vein struct {
-	Name       string   `yaml:"name"`                 // Vein name (e.g., "python", "the-c-programming-language")
+	Name       string   `yaml:"name"`                 // Vein name (e.g., "python", "c")
 	Container  string   `yaml:"container"`            // Container image (required)
 	Extensions []string `yaml:"extensions,omitempty"` // File extensions that map to this vein (e.g., [".py"])
 }

@@ -24,7 +24,7 @@ Examples:
   fragletc --vein=python script.py
 
   # Vein with mode
-  fragletc --vein=the-c-programming-language:main script.c
+  fragletc --vein=c:main script.c
 
   # Direct container image
   fragletc --image=my-registry/python:latest script.py

@@ -1,0 +1,6 @@
+Compiling source
+	hello-world.bal
+
+Generating executables
+	hello-world.jar
+Hello, World!

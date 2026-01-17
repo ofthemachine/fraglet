@@ -1,14 +1,8 @@
 #!/bin/sh
 set -e
-
-# Test R vein by name
-FRAGLETC="./fragletc"
+chmod +x ./*.R 2>/dev/null || true
 
 echo "=== Test: Vector processing ==="
-cat <<'EOF' | "$FRAGLETC" --vein r
-numbers <- 1:5
-squared <- numbers^2
-cat("Sum of squares:", sum(squared), "\n")
-EOF
+./vector_process.R
 
 

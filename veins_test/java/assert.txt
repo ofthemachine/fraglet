@@ -1,4 +1,4 @@
-=== Test: WordSet operations ===
+0: f
+1: bar
+2: fragletc is wonderful-see?
 Words ending with 'ing': 18119
-
-

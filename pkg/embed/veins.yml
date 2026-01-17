@@ -283,7 +283,7 @@ veins:
     container: 100hellos/tcsh:latest
     extensions: [.tcsh, .csh]
 
-  - name: the-c-programming-language
+  - name: c
     container: 100hellos/the-c-programming-language:latest
     extensions: [.c]
 

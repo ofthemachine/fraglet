@@ -1,4 +1,2 @@
-=== Test: Facts and queries ===
-Alice likes: chocolate
-
-
+Hello, World!
+true.

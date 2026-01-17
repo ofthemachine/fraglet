@@ -17,7 +17,7 @@ import (
 var RunTool *mcp.Tool
 
 func init() {
-	// Load veins (checks FRAGLET_VEINS_DIR first, then embedded)
+	// Load veins (checks FRAGLET_VEINS_PATH first, then embedded)
 	registry, err := vein.LoadAuto(embed.LoadEmbeddedVeins)
 
 	if err != nil {

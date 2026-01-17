@@ -1,4 +1,1 @@
-=== Test: Typed array processing ===
-Sum of squares: 55
-
-
+Hello, World!

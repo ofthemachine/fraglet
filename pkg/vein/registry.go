@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	// VeinsDirEnvVar is the environment variable that, when set, makes the system
-	// use filesystem veins instead of embedded ones. This is useful for development.
-	VeinsDirEnvVar = "FRAGLET_VEINS_DIR"
+	// VeinsPathEnvVar is the environment variable that, when set, makes the system
+	// use filesystem veins instead of embedded ones. Can be a file or directory path.
+	// This is useful for development.
+	VeinsPathEnvVar = "FRAGLET_VEINS_PATH"
 )
 
 // VeinsConfig represents the top-level structure of veins.yml
@@ -90,12 +91,22 @@ func LoadFromDir(dir string) (*VeinRegistry, error) {
 	return registry, nil
 }
 
-// LoadAuto loads veins, checking FRAGLET_VEINS_DIR first, then falling back to embedded
+// LoadAuto loads veins, checking FRAGLET_VEINS_PATH first, then falling back to embedded
+// The path can be either a file or a directory
 func LoadAuto(loadEmbedded func() (*VeinRegistry, error)) (*VeinRegistry, error) {
-	veinsDir := os.Getenv(VeinsDirEnvVar)
-	if veinsDir != "" {
-		// Use filesystem veins (development mode)
-		return LoadFromDir(veinsDir)
+	veinsPath := os.Getenv(VeinsPathEnvVar)
+	if veinsPath != "" {
+		// Check if path is a file or directory
+		info, err := os.Stat(veinsPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to stat veins path %s: %w", veinsPath, err)
+		}
+		if info.IsDir() {
+			// Use filesystem veins from directory (development mode)
+			return LoadFromDir(veinsPath)
+		}
+		// Use filesystem veins from file (development mode)
+		return LoadFromFile(veinsPath)
 	}
 	// Use embedded veins (production mode)
 	return loadEmbedded()

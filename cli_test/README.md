@@ -21,7 +21,7 @@ Each test category has its own directory:
 cli_test/
   stdin/      - STDIN input tests
   file/       - File input tests
-  envelope/   - Embedded vein tests
+  vein/       - Embedded vein tests
   errors/     - Error handling tests
   cli_test.go - Test harness using clitest
 ```

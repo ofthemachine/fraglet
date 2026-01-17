@@ -1,0 +1,5 @@
+#!/usr/bin/env -S fragletc --vein=snobol4
+        TEXT = "Hello World"
+        TEXT "World" = "Universe"
+        OUTPUT = TEXT
+END

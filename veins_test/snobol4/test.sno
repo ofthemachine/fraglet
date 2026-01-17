@@ -1,0 +1,3 @@
+#!/usr/bin/env -S fragletc --vein=snobol4
+*       Simple output
+        OUTPUT = "Hello, World!"

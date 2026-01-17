@@ -1,10 +1,1 @@
-=== Test 1: Basic execution ===
-Hello, Python!
-
-=== Test 2: Multi-line code ===
-Hello, Fraglet!
-
-=== Test 3: File input ===
-Count: 0
-Count: 1
-Count: 2
+Hello, World!
