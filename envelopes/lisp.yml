@@ -1,4 +1,0 @@
-name: lisp
-language: lisp
-container: 100hellos/lisp:latest
-fragletPath: /FRAGLET

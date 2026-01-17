@@ -7,7 +7,8 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/ofthemachine/fraglet/pkg/fraglet"
+	"github.com/ofthemachine/fraglet/pkg/embed"
+	"github.com/ofthemachine/fraglet/pkg/vein"
 )
 
 var LanguageHelpTool = &mcp.Tool{
@@ -31,19 +32,19 @@ func LanguageHelp(ctx context.Context, req *mcp.CallToolRequest, input LanguageH
 	LanguageHelpOutput,
 	error,
 ) {
-	// Create fraglet environment to get envelope
-	env, err := fraglet.NewFragletEnvironmentAuto()
+	// Load veins
+	registry, err := vein.LoadAuto(embed.LoadEmbeddedVeins)
 	if err != nil {
-		return nil, LanguageHelpOutput{}, fmt.Errorf("failed to init environment: %w", err)
+		return nil, LanguageHelpOutput{}, fmt.Errorf("failed to load veins: %w", err)
 	}
 
-	envelope, ok := env.GetRegistry().GetEnvelope(input.Lang)
+	v, ok := registry.Get(input.Lang)
 	if !ok {
 		return nil, LanguageHelpOutput{}, fmt.Errorf("unsupported language: %s", input.Lang)
 	}
 
 	// Run docker command to get guide
-	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", envelope.Container, "guide")
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", v.Container, "guide")
 
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
@@ -54,7 +55,7 @@ func LanguageHelp(ctx context.Context, req *mcp.CallToolRequest, input LanguageH
 	}
 
 	help := strings.TrimSpace(stdout.String())
-	reminder := "\n\n---\nFraglet handles code injection/execution for you. Treat this authoring guide as the single source of truth—no repo spelunking or envelope inspection required. If execution fails, iterate from that feedback rather than hunting for config."
+	reminder := "\n\n---\nFraglet handles code injection/execution for you. Treat this authoring guide as the single source of truth—no repo spelunking or vein inspection required. If execution fails, iterate from that feedback rather than hunting for config."
 	helpWithReminder := help + reminder
 
 	// Return formatted TextContent for better rendering in chat

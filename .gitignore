@@ -10,6 +10,9 @@ fragletc
 *.so
 *.dylib
 
+# Temp stuff, for temp thing
+tmp/*
+
 # Test binary, built with `go test -c`
 *.test
 

@@ -49,6 +49,7 @@ type RunSpec struct {
 	Env        []string      // Optional environment variables (for ENVVAR input)
 	WorkDir    string        // Optional working directory
 	Volumes    []VolumeMount // Optional volume mounts
+	Args       []string      // Arguments passed to the command
 	// Note: Executor field removed - Phase 2 feature when executor registry is designed
 }
 

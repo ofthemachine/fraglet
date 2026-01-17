@@ -1,5 +1,0 @@
-name: elixir
-language: elixir
-container: 100hellos/elixir:latest
-fragletPath: /FRAGLET
-

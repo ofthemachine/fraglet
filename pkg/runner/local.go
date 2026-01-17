@@ -33,29 +33,29 @@ func (r *localRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streamin
 	var cmd *exec.Cmd
 	var cleanup func()
 
-	// If entrypoint specified OR command has shebang, write to temp file
-	// This matches docker's behavior exactly (just without container mounting)
-	if spec.Entrypoint != "" || hasShebang(spec.Command) {
-		tempFile, cleanupFn, err := writeTempScript(spec.Command)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create temp script: %w", err)
-		}
-		cleanup = cleanupFn
-		// Note: cleanup must be called in two places:
-		// 1. On error paths before cmd.Start() succeeds (handled below)
-		// 2. After command completes in goroutine (handled in Wait goroutine)
-
-		if spec.Entrypoint != "" {
-			// Execute via entrypoint (same as docker, just locally)
-			// e.g., "python /tmp/script" or "node /tmp/script"
-			cmd = exec.CommandContext(ctx, spec.Entrypoint, tempFile)
+	// Build command based on what's provided
+	if spec.Entrypoint != "" {
+		// Entrypoint specified: use it to execute command
+		if spec.Command != "" {
+			// Write command to temp file and execute via entrypoint
+			tempFile, cleanupFn, err := writeTempScript(spec.Command)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create temp script: %w", err)
+			}
+			cleanup = cleanupFn
+			args := append([]string{tempFile}, spec.Args...)
+			cmd = exec.CommandContext(ctx, spec.Entrypoint, args...)
 		} else {
-			// Shebang present but no entrypoint - execute script directly (shebang will be honored)
-			cmd = exec.CommandContext(ctx, tempFile)
+			// Entrypoint with no command - just use entrypoint
+			cmd = exec.CommandContext(ctx, spec.Entrypoint, spec.Args...)
 		}
-	} else {
-		// No entrypoint and no shebang - use sh -c
+	} else if spec.Command != "" {
+		// Command specified: execute via sh -c
 		cmd = exec.CommandContext(ctx, "sh", "-c", spec.Command)
+		// Args don't make sense with sh -c
+	} else {
+		// Nothing specified - error
+		return nil, fmt.Errorf("no command, entrypoint, or volumes specified")
 	}
 
 	stdoutChan := make(chan string, 10)
@@ -67,7 +67,7 @@ func (r *localRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streamin
 		cmd.Stdin = bytes.NewBufferString(spec.Stdin)
 	}
 
-	if spec.Env != nil && len(spec.Env) > 0 {
+	if len(spec.Env) > 0 {
 		// Extend environment - start with current env and add spec.Env
 		cmd.Env = append(os.Environ(), spec.Env...)
 	}

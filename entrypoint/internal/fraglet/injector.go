@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/ofthemachine/fraglet/pkg/fraglet"
+	"github.com/ofthemachine/fraglet/pkg/inject"
 )
 
 // Injector performs fraglet injection into a single target file.
@@ -30,7 +31,13 @@ func (i *Injector) Inject(fragletPath string, injection fraglet.InjectionConfig)
 	}
 
 	// Existing template injection logic
-	if err := fraglet.InjectFile(fragletPath, &injection); err != nil {
+	injectConfig := &inject.Config{
+		CodePath:   injection.CodePath,
+		Match:      injection.Match,
+		MatchStart: injection.MatchStart,
+		MatchEnd:   injection.MatchEnd,
+	}
+	if err := inject.InjectFile(fragletPath, injectConfig); err != nil {
 		return err
 	}
 	// Remove temp fraglet file after injection

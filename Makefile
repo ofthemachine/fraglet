@@ -1,19 +1,12 @@
-.PHONY: run test lint build build-cli install install-cli test-integration test-harness test-entrypoint test-envelopes
+.PHONY: run test lint build build-cli install install-cli test-integration test-harness test-entrypoint test-veins
 
-# Copy envelopes for embedding
-# Use a stamp file to track when copy was last done
-pkg/embed/envelopes/.stamp: $(wildcard envelopes/*.yml)
-	@mkdir -p pkg/embed/envelopes
-	@cp envelopes/*.yml pkg/embed/envelopes/
-	@touch pkg/embed/envelopes/.stamp
+# Veins are embedded directly from pkg/embed/veins.yml via go:embed
+# No build-time copying needed
 
-# Phony target that depends on stamp file
-pkg/embed/envelopes: pkg/embed/envelopes/.stamp
-
-build: pkg/embed/envelopes
+build:
 	go build -o fraglet-mcp .
 
-build-cli: pkg/embed/envelopes
+build-cli:
 	go build -o fragletc ./cli
 
 install: build
@@ -32,8 +25,8 @@ test:
 test-entrypoint:
 	cd entrypoint && go test -tags=integration -v ./tests/...
 
-test-envelopes:
-	cd envelopes_test && go test -tags=integration -v .
+test-veins:
+	cd veins_test && go test -tags=integration -v .
 
 test-cli:
 	cd cli_test && go test -tags=integration -v .

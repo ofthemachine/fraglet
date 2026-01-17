@@ -1,4 +1,0 @@
-name: prolog
-language: prolog
-container: 100hellos/prolog:latest
-fragletPath: /FRAGLET

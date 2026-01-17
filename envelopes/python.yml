@@ -1,4 +1,0 @@
-name: python
-language: python
-container: 100hellos/python:latest
-fragletPath: /FRAGLET

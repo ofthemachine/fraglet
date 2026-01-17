@@ -1,44 +1,53 @@
 package fraglet
 
-import "testing"
+import (
+	"testing"
 
-func TestInjectWithMatch(t *testing.T) {
-	template := "line1\n    # FRAGLET\nline3"
-	code := "print('hi')\nprint('bye')"
+	"github.com/ofthemachine/fraglet/pkg/inject"
+)
 
-	rendered, err := InjectString(template, code, &InjectionConfig{Match: "# FRAGLET"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestInjectString(t *testing.T) {
+	config := &inject.Config{
+		Match: "FRAGLET",
 	}
 
-	got := rendered
-	want := "line1\n    print('hi')\n    print('bye')\nline3"
-	if got != want {
-		t.Fatalf("render mismatch\nwant:\n%s\n\ngot:\n%s", want, got)
+	result, err := inject.InjectString("Hello FRAGLET World", "Injected", config)
+	if err != nil {
+		t.Fatalf("InjectString failed: %v", err)
+	}
+
+	expected := "Hello Injected World"
+	if result != expected {
+		t.Errorf("Expected %q, got %q", expected, result)
 	}
 }
 
-func TestInjectWithMatch_NotFound(t *testing.T) {
-	_, err := InjectString("line", "code", &InjectionConfig{Match: "missing"})
+func TestInjectStringWithRange(t *testing.T) {
+	config := &inject.Config{
+		MatchStart: "BEGIN",
+		MatchEnd:   "END",
+	}
+
+	template := "Before\nBEGIN\nOld\nEND\nAfter"
+	result, err := inject.InjectString(template, "New", config)
+	if err != nil {
+		t.Fatalf("InjectString failed: %v", err)
+	}
+
+	expected := "Before\nNew\nAfter"
+	if result != expected {
+		t.Errorf("Expected %q, got %q", expected, result)
+	}
+}
+
+func TestInjectStringNoMatch(t *testing.T) {
+	config := &inject.Config{
+		MatchStart: "NOTFOUND",
+		MatchEnd:   "ALSONOTFOUND",
+	}
+
+	_, err := inject.InjectString("Some text", "Code", config)
 	if err == nil {
-		t.Fatal("expected error for missing match")
-	}
-}
-
-func TestInjectWithMatchRegion(t *testing.T) {
-	template := "start\n/* START */\nold\n/* END */\nend"
-	code := "new-line"
-
-	rendered, err := InjectString(template, code, &InjectionConfig{
-		MatchStart: "/* START */",
-		MatchEnd:   "/* END */",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	want := "start\nnew-line\nend"
-	if rendered != want {
-		t.Fatalf("render mismatch\nwant:\n%s\n\ngot:\n%s", want, rendered)
+		t.Error("Expected error for missing match, got nil")
 	}
 }

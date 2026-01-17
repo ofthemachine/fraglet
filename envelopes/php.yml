@@ -1,5 +1,0 @@
-name: php
-language: php
-container: 100hellos/php:latest
-fragletPath: /FRAGLET
-

@@ -1,0 +1,6 @@
+=== Test: the-c-programming-language ===
+Array sum: 15
+
+=== Test: the-c-programming-language with mode syntax ===
+Sum: 30
+Product: 200

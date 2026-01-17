@@ -1,13 +1,14 @@
-=== Test 1: STDIN with --envelope flag ===
-Hello from envelope!
+=== Test 1: STDIN with --vein flag ===
+Hello from vein!
 
-=== Test 2: STDIN with short -e flag ===
-Short envelope flag!
+=== Test 2: STDIN with short -v flag ===
+Short vein flag!
 
-=== Test 3: File input with envelope ===
-File with envelope!
+=== Test 3: File input with vein ===
+File with vein!
 
-=== Test 4: Envelope with custom fraglet-path ===
-Envelope custom path!
+=== Test 4: Vein with mode ===
+Vein with mode!
 
-
+=== Test 5: Extension inference ===
+Inferred from extension!

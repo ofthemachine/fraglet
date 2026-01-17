@@ -3,13 +3,7 @@ package runner
 import (
 	"os"
 	"path/filepath"
-	"strings"
 )
-
-// hasShebang checks if a command starts with a shebang
-func hasShebang(command string) bool {
-	return strings.HasPrefix(strings.TrimSpace(command), "#!")
-}
 
 // writeTempScript writes a command to a temporary file and returns the path and cleanup function
 // The file is made executable and has no extension - suitable for shebang execution

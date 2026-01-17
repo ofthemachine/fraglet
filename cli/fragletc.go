@@ -7,9 +7,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
-	"github.com/ofthemachine/fraglet/pkg/fraglet"
+	"github.com/ofthemachine/fraglet/pkg/embed"
 	"github.com/ofthemachine/fraglet/pkg/runner"
+	"github.com/ofthemachine/fraglet/pkg/vein"
 )
 
 const defaultFragletPath = "/FRAGLET"
@@ -17,40 +19,82 @@ const defaultFragletPath = "/FRAGLET"
 func main() {
 	flag.Usage = usage
 
-	// Define flags - use same variable for short and long forms
-	image := flag.String("image", "", "Container image to use (e.g., 100hellos/python:local)")
-	envelope := flag.String("envelope", "", "Use embedded envelope by name (e.g., python, javascript)")
-	input := flag.String("input", "", "Path to code file (if not provided, reads from STDIN)")
+	// Define flags
+	veinSpec := flag.String("vein", "", "Vein name with optional mode (e.g., python, python:main)")
+	image := flag.String("image", "", "Container image to use directly (e.g., my-registry/python:latest)")
 	fragletPath := flag.String("fraglet-path", defaultFragletPath, "Path where code is mounted in container (default: /FRAGLET)")
 
-	// Also define short forms that point to the same variables
+	// Short forms
+	flag.StringVar(veinSpec, "v", "", "Vein name with optional mode (short form)")
 	flag.StringVar(image, "i", "", "Container image (short form)")
-	flag.StringVar(envelope, "e", "", "Use embedded envelope by name (short form)")
-	flag.StringVar(input, "f", "", "Path to code file (short form)")
 	flag.StringVar(fragletPath, "p", defaultFragletPath, "Path where code is mounted in container (short form)")
 
 	flag.Parse()
 
-	// Validate: must specify either image or envelope, but not both
-	if *image == "" && *envelope == "" {
+	// Handle positional arguments
+	args := flag.Args()
+	var scriptFile string
+	var scriptArgs []string
+
+	if len(args) > 0 {
+		if args[0] == "-" {
+			// Explicit stdin, remaining args are script args
+			scriptArgs = args[1:]
+		} else {
+			// First arg is script file, remaining are script args
+			scriptFile = args[0]
+			scriptArgs = args[1:]
+		}
+	}
+
+	// Determine vein and mode
+	var veinName, mode string
+	var err error
+
+	if *veinSpec != "" {
+		// Parse vein:mode syntax
+		veinName, mode, err = parseVeinSpec(*veinSpec)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	} else if scriptFile != "" && *image == "" {
+		// Try to infer from extension (only if --image is not specified)
+		registry, regErr := loadVeinRegistry()
+		if regErr != nil {
+			fmt.Fprintf(os.Stderr, "Error loading veins: %v\n", regErr)
+			os.Exit(1)
+		}
+		extMap := vein.NewExtensionMap(registry)
+		veinName, err = extMap.VeinForFile(scriptFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	} else if *image == "" && veinName == "" {
+		// No vein, no image, no file - error
 		usage()
 		os.Exit(1)
 	}
-	if *image != "" && *envelope != "" {
-		fmt.Fprintf(os.Stderr, "Error: cannot specify both --image and --envelope\n")
+
+	// Validate: cannot specify both image and vein
+	if *image != "" && veinName != "" {
+		fmt.Fprintf(os.Stderr, "Error: cannot specify both --image and --vein\n")
 		os.Exit(1)
 	}
 
 	var code string
 
 	// Read code from file if provided, otherwise from STDIN
-	if *input != "" {
-		codeBytes, err := os.ReadFile(*input)
+	if scriptFile != "" {
+		codeBytes, err := os.ReadFile(scriptFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", *input, err)
+			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", scriptFile, err)
 			os.Exit(1)
 		}
 		code = string(codeBytes)
+		// Strip shebang if present
+		code = stripShebang(code)
 	} else {
 		// Read from STDIN
 		codeBytes, err := io.ReadAll(os.Stdin)
@@ -63,20 +107,56 @@ func main() {
 
 	ctx := context.Background()
 	var result *runner.RunResult
-	var err error
 
-	if *envelope != "" {
-		// Use envelope (filesystem if FRAGLET_ENVELOPES_DIR is set, otherwise embedded)
-		env, err := fraglet.NewFragletEnvironmentAuto()
+	if veinName != "" {
+		// Use vein
+		registry, err := loadVeinRegistry()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading envelopes: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error loading veins: %v\n", err)
 			os.Exit(1)
 		}
 
-		// Use FragletEnvironment.Execute() to respect all envelope settings
-		// including fragletConfig, fragletPath, etc.
-		proc := fraglet.NewFragletProc(code)
-		result, err = env.Execute(ctx, *envelope, proc)
+		v, ok := registry.Get(veinName)
+		if !ok {
+			fmt.Fprintf(os.Stderr, "Error: vein not found: %s\n", veinName)
+			os.Exit(1)
+		}
+
+		// Build environment variables for mode
+		var envVars []string
+		if mode != "" {
+			// Mode convention: /fraglet-{mode}.yml or /fraglet-{mode}.yaml
+			envVars = append(envVars, fmt.Sprintf("FRAGLET_CONFIG=/fraglet-%s.yml", mode))
+		}
+
+		// Write code to temp file
+		tmpFile, cleanup, err := writeTempFile(code)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating temp file: %v\n", err)
+			os.Exit(1)
+		}
+		defer cleanup()
+
+		// Create runner
+		r := runner.NewRunner(v.Container, "")
+
+		// Execute with volume mount at fragletPath
+		spec := runner.RunSpec{
+			Container: v.Container,
+			Env:       envVars,
+			Args:      scriptArgs,
+			Volumes: []runner.VolumeMount{
+				{
+					HostPath:      tmpFile,
+					ContainerPath: defaultFragletPath,
+					ReadOnly:      true,
+				},
+			},
+		}
+
+		runResult, runErr := r.Run(ctx, spec)
+		result = &runResult
+		err = runErr
 	} else {
 		// Use direct container image
 		containerImage := *image
@@ -96,6 +176,7 @@ func main() {
 		// Execute with volume mount at fragletPath
 		spec := runner.RunSpec{
 			Container: containerImage,
+			Args:      scriptArgs,
 			Volumes: []runner.VolumeMount{
 				{
 					HostPath:      tmpFile,
@@ -109,6 +190,7 @@ func main() {
 		result = &runResult
 		err = runErr
 	}
+
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Execution failed: %v\n", err)
 		os.Exit(1)
@@ -124,6 +206,23 @@ func main() {
 
 	// Exit with the same code as the execution
 	os.Exit(result.ExitCode)
+}
+
+// parseVeinSpec parses "vein" or "vein:mode" syntax
+func parseVeinSpec(spec string) (veinName, mode string, err error) {
+	parts := strings.Split(spec, ":")
+	if len(parts) == 1 {
+		return parts[0], "", nil
+	}
+	if len(parts) == 2 {
+		return parts[0], parts[1], nil
+	}
+	return "", "", fmt.Errorf("invalid vein spec format: %s (expected 'vein' or 'vein:mode')", spec)
+}
+
+// loadVeinRegistry loads veins using the auto-loading mechanism
+func loadVeinRegistry() (*vein.VeinRegistry, error) {
+	return vein.LoadAuto(embed.LoadEmbeddedVeins)
 }
 
 func writeTempFile(content string) (string, func(), error) {
@@ -147,28 +246,47 @@ func writeTempFile(content string) (string, func(), error) {
 	return absPath, cleanup, nil
 }
 
-func usage() {
-	fmt.Fprintf(os.Stderr, `Usage: fragletc [flags]
+func stripShebang(code string) string {
+	if strings.HasPrefix(code, "#!") {
+		if idx := strings.Index(code, "\n"); idx != -1 {
+			return code[idx+1:]
+		}
+	}
+	return code
+}
 
-Execute fraglet code in a container using either --image or --envelope.
+func usage() {
+	fmt.Fprintf(os.Stderr, `Usage: fragletc [flags] [script-file] [script-args...]
+
+Execute fraglet code in a container using either --vein or --image.
 
 Flags:
-  -e, --envelope string
-        Use embedded envelope by name (e.g., python, javascript)
-  -f, --input string
-        Path to code file (if not provided, reads from STDIN)
+  -v, --vein string
+        Vein name with optional mode (e.g., python, python:main)
   -i, --image string
-        Container image to use (e.g., 100hellos/python:latest)
+        Container image to use directly (e.g., my-registry/python:latest)
   -p, --fraglet-path string
         Path where code is mounted in container (default: /FRAGLET)
 
-Examples:
-  # Using container image
-  echo 'print("Hello")' | fragletc --image 100hellos/python:latest
-  fragletc --image 100hellos/python:latest --input script.py
+Positional:
+  script-file   Path to code file, or "-" for stdin
+  script-args   Arguments passed to the script inside container
 
-  # Using embedded envelope
-  echo 'print("Hello")' | fragletc --envelope python
-  fragletc --envelope python --input script.py
+Examples:
+  # Infer vein from extension
+  fragletc script.py
+  fragletc script.py arg1 arg2
+
+  # Explicit vein
+  fragletc --vein=python script.py
+
+  # Vein with mode
+  fragletc --vein=the-c-programming-language:main script.c
+
+  # Direct container image
+  fragletc --image=my-registry/python:latest script.py
+
+  # As shebang (script contains: #!/usr/bin/fragletc)
+  ./script.py arg1 arg2
 `)
 }

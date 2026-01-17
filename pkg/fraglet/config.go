@@ -3,10 +3,13 @@ package fraglet
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
+	"github.com/ofthemachine/fraglet/pkg/inject"
 	"gopkg.in/yaml.v3"
 )
+
+// InjectionConfig is an alias for inject.Config for backward compatibility in entrypoint config
+type InjectionConfig = inject.Config
 
 // EntrypointConfig describes how to inject, store, and execute fraglets inside a container.
 type EntrypointConfig struct {
@@ -55,32 +58,24 @@ const (
 	DefaultGuidePath             = "/guide.md"
 )
 
-// LoadEntrypointConfig loads config from FRAGLET_CONFIG envvar path, or looks for
-// fraglet.yaml or fraglet.yml as a sibling to the binary, or uses default path
+// LoadEntrypointConfig loads config using mode convention:
+// - If FRAGLET_CONFIG is set, use that path
+// - Otherwise, try /fraglet.yml or /fraglet.yaml (default mode)
+// - Falls back to defaults if no config found
 func LoadEntrypointConfig() (*EntrypointConfig, error) {
 	path := os.Getenv("FRAGLET_CONFIG")
 	if path == "" {
-		// Try to find config as sibling to the binary (check both .yaml and .yml)
-		execPath, err := os.Executable()
-		if err == nil {
-			execDir := filepath.Dir(execPath)
-			// Try fraglet.yaml first, then fraglet.yml
-			for _, name := range []string{"fraglet.yaml", "fraglet.yml"} {
-				siblingPath := filepath.Join(execDir, name)
-				if _, err := os.Stat(siblingPath); err == nil {
-					path = siblingPath
-					break
-				}
+		// Default mode convention: try /fraglet.yml then /fraglet.yaml
+		for _, candidate := range []string{"/fraglet.yml", "/fraglet.yaml"} {
+			if _, err := os.Stat(candidate); err == nil {
+				path = candidate
+				break
 			}
 		}
 
-		// If still not found, try default path
+		// If still not found, return defaults
 		if path == "" {
-			path = DefaultEntrypointConfigPath
-			if _, err := os.Stat(path); os.IsNotExist(err) {
-				// No config file, return defaults
-				return DefaultEntrypointConfig(), nil
-			}
+			return DefaultEntrypointConfig(), nil
 		}
 	}
 

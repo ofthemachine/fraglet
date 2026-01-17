@@ -1,7 +1,0 @@
-name: java
-language: java
-container: 100hellos/java:latest
-fragletPath: /FRAGLET
-
-
-

@@ -62,10 +62,10 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 	// Start building docker run command
 	cmdArgs = append(cmdArgs, "docker", "run", "--rm", "-i", "--platform", platform)
 
-	// If volumes are specified and command is empty, use container's default entrypoint
-	// This is for fragment injection patterns where the container handles execution
+	// Build docker command based on what's provided
 	if len(spec.Volumes) > 0 && spec.Command == "" && spec.Entrypoint == "" {
-		// Add volumes first (before container name)
+		// Volumes only: mount and let container's default entrypoint handle execution
+		// This is for fraglet-entrypoint containers
 		for _, vol := range spec.Volumes {
 			mountSpec := fmt.Sprintf("%s:%s", vol.HostPath, vol.ContainerPath)
 			if vol.ReadOnly {
@@ -83,39 +83,42 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 		}
 		// Add container name at the end
 		cmdArgs = append(cmdArgs, spec.Container)
+		// Append script args after container name
+		cmdArgs = append(cmdArgs, spec.Args...)
 		dockerCmd = exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
-	} else if spec.Entrypoint != "" || hasShebang(spec.Command) {
-		// If entrypoint specified OR command has shebang, write to temp file
-		var err error
-		tempFile, cleanup, err = writeTempScript(spec.Command)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create temp script: %w", err)
-		}
-		// Note: cleanup must be called in two places:
-		// 1. On error paths before dockerCmd.Start() succeeds (handled below)
-		// 2. After command completes in goroutine (handled in Wait goroutine)
-
-		if spec.Entrypoint != "" {
-			// Mount temp file into container and execute via entrypoint
-			// Use --entrypoint flag to override container's default entrypoint
-			// Use /tmp/script (generic name, no extension) - entrypoint determines how to execute
-			dockerCmd = exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "--platform", platform,
+	} else if spec.Entrypoint != "" {
+		// Entrypoint specified: use it to execute command
+		if spec.Command != "" {
+			// Write command to temp file and mount it
+			var err error
+			tempFile, cleanup, err = writeTempScript(spec.Command)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create temp script: %w", err)
+			}
+			cmdArgs := []string{"docker", "run", "--rm", "-i", "--platform", platform,
 				"--entrypoint", spec.Entrypoint,
 				"-v", fmt.Sprintf("%s:/tmp/script:ro", tempFile),
 				spec.Container,
-				"/tmp/script")
+				"/tmp/script"}
+			cmdArgs = append(cmdArgs, spec.Args...)
+			dockerCmd = exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
 		} else {
-			// Shebang present but no entrypoint - execute script directly (shebang will be honored)
-			dockerCmd = exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "--platform", platform,
-				"-v", fmt.Sprintf("%s:/tmp/script:ro", tempFile),
-				spec.Container,
-				"/tmp/script")
+			// Entrypoint with no command - just use entrypoint
+			cmdArgs = append(cmdArgs, "--entrypoint", spec.Entrypoint, spec.Container)
+			cmdArgs = append(cmdArgs, spec.Args...)
+			dockerCmd = exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
 		}
-	} else {
-		// No entrypoint and no shebang - use sh -c
+	} else if spec.Command != "" {
+		// Command specified: execute via sh -c
 		dockerCmd = exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "--platform", platform,
 			spec.Container,
 			"sh", "-c", spec.Command)
+		// Args don't make sense with sh -c (they'd be part of the command string)
+	} else {
+		// Nothing specified - just run container
+		cmdArgs = append(cmdArgs, spec.Container)
+		cmdArgs = append(cmdArgs, spec.Args...)
+		dockerCmd = exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
 	}
 
 	if spec.Stdin != "" {
@@ -132,7 +135,7 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 		dockerCmd.Args = append(dockerCmd.Args, "-w", spec.WorkDir)
 	}
 
-	// Add volume mounts (only if not already added in fragment injection case)
+	// Add volume mounts (only if not already added in volumes-only case above)
 	if !(len(spec.Volumes) > 0 && spec.Command == "" && spec.Entrypoint == "") {
 		for _, vol := range spec.Volumes {
 			mountSpec := fmt.Sprintf("%s:%s", vol.HostPath, vol.ContainerPath)

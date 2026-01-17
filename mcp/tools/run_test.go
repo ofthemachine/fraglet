@@ -52,8 +52,8 @@ func TestRun_UnsupportedLanguage(t *testing.T) {
 		t.Error("Expected error for unsupported language, got nil")
 	}
 
-	if !strings.Contains(err.Error(), "envelope not found") && !strings.Contains(err.Error(), "unsupported language") {
-		t.Errorf("Expected error message about envelope not found or unsupported language, got: %v", err)
+	if !strings.Contains(err.Error(), "vein not found") && !strings.Contains(err.Error(), "unsupported language") {
+		t.Errorf("Expected error message about vein not found or unsupported language, got: %v", err)
 	}
 }
 
@@ -93,8 +93,8 @@ func TestLanguageHelp_UnsupportedLanguage(t *testing.T) {
 		t.Error("Expected error for unsupported language, got nil")
 	}
 
-	if !strings.Contains(err.Error(), "unsupported language") && !strings.Contains(err.Error(), "envelope not found") {
-		t.Errorf("Expected error message about unsupported language or envelope not found, got: %v", err)
+	if !strings.Contains(err.Error(), "unsupported language") && !strings.Contains(err.Error(), "vein not found") {
+		t.Errorf("Expected error message about unsupported language or vein not found, got: %v", err)
 	}
 }
 

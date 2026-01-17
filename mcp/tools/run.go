@@ -9,65 +9,19 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/ofthemachine/fraglet/pkg/fraglet"
+	"github.com/ofthemachine/fraglet/pkg/embed"
+	"github.com/ofthemachine/fraglet/pkg/runner"
+	"github.com/ofthemachine/fraglet/pkg/vein"
 )
 
 var RunTool *mcp.Tool
 
-// findEnvelopesDir finds the envelopes directory by trying multiple paths
-func findEnvelopesDir() string {
-	// Try environment variable first
-	if dir := os.Getenv("FRAGLET_ENVELOPES_DIR"); dir != "" {
-		return dir
-	}
-
-	// Get current working directory
-	cwd, err := os.Getwd()
-	if err == nil {
-		// Try relative to current working directory
-		envelopesPath := filepath.Join(cwd, "envelopes")
-		if _, err := os.Stat(envelopesPath); err == nil {
-			return envelopesPath
-		}
-
-		// Try going up directories to find repo root
-		current := cwd
-		for i := 0; i < 5; i++ {
-			envelopesPath := filepath.Join(current, "envelopes")
-			if _, err := os.Stat(envelopesPath); err == nil {
-				return envelopesPath
-			}
-			parent := filepath.Dir(current)
-			if parent == current {
-				break
-			}
-			current = parent
-		}
-	}
-
-	// Try relative to executable (for installed binaries)
-	execPath, err := os.Executable()
-	if err == nil {
-		execDir := filepath.Dir(execPath)
-		// Try going up from bin/ or build/ directories
-		for _, base := range []string{execDir, filepath.Dir(execDir), filepath.Dir(filepath.Dir(execDir))} {
-			envelopesPath := filepath.Join(base, "envelopes")
-			if _, err := os.Stat(envelopesPath); err == nil {
-				return envelopesPath
-			}
-		}
-	}
-
-	// Default fallback (relative path)
-	return "./envelopes"
-}
-
 func init() {
-	// Load environment (checks FRAGLET_ENVELOPES_DIR first, then embedded)
-	env, err := fraglet.NewFragletEnvironmentAuto()
+	// Load veins (checks FRAGLET_VEINS_DIR first, then embedded)
+	registry, err := vein.LoadAuto(embed.LoadEmbeddedVeins)
 
 	if err != nil {
-		// If envelopes can't be loaded, use placeholder description
+		// If veins can't be loaded, use placeholder description
 		RunTool = &mcp.Tool{
 			Name: "run",
 			Description: "Execute code snippets for code-based reasoning, leveraging the best language and ecosystem for each task. " +
@@ -75,7 +29,7 @@ func init() {
 				"Each environment provides not just the language, but potentially fluent interfaces for complex systems interactions, " +
 				"data processing libraries, APIs, and more. Use this to explore statistical reasoning, probabilities, mathematical computation, " +
 				"physics simulations, data analysis, and other problem domains best solved with code. " +
-				"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language—those guides already include everything you need, so do not hunt through repos or envelopes. " +
+				"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language—those guides already include everything you need, so do not hunt through repos or veins. " +
 				"Each language has specific requirements about code format (e.g., complete programs vs. code fragments, required structure, etc.) " +
 				"that you must follow.",
 			Annotations: &mcp.ToolAnnotations{
@@ -85,7 +39,7 @@ func init() {
 		return
 	}
 
-	envelopes := env.GetRegistry().ListEnvelopes()
+	veins := registry.List()
 	RunTool = &mcp.Tool{
 		Name: "run",
 		Description: fmt.Sprintf("Execute code snippets for code-based reasoning, leveraging the best language and ecosystem for each task. "+
@@ -94,10 +48,10 @@ func init() {
 			"data processing libraries, APIs, and more. Use this to explore statistical reasoning, probabilities, mathematical computation, "+
 			"physics simulations, data analysis, and other problem domains best solved with code. "+
 			"Supported languages: %s. "+
-			"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language—those guides already include everything you need, so do not hunt through repos or envelopes. "+
+			"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language—those guides already include everything you need, so do not hunt through repos or veins. "+
 			"Each language has specific requirements about code format (e.g., complete programs vs. code fragments, required structure, etc.) "+
 			"that you must follow. Use this for quick code invocations to test hypotheses, calculate values, analyze data, or prototype solutions.",
-			strings.Join(envelopes, ", ")),
+			strings.Join(veins, ", ")),
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint: true,
 		},
@@ -121,24 +75,47 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 	RunOutput,
 	error,
 ) {
-	// Create fraglet environment - check FRAGLET_ENVELOPES_DIR first, then embedded
-	env, err := fraglet.NewFragletEnvironmentAuto()
+	// Load veins
+	registry, err := vein.LoadAuto(embed.LoadEmbeddedVeins)
 	if err != nil {
-		return nil, RunOutput{}, fmt.Errorf("failed to init environment: %w", err)
+		return nil, RunOutput{}, fmt.Errorf("failed to load veins: %w", err)
 	}
 
-	// Create FragletProc (just the code)
-	proc := fraglet.NewFragletProc(input.Code)
+	// Get vein by name
+	v, ok := registry.Get(input.Lang)
+	if !ok {
+		return nil, RunOutput{}, fmt.Errorf("vein not found: %s", input.Lang)
+	}
 
-	// Execute using envelope name from input.Lang
-	result, err := env.Execute(ctx, input.Lang, proc)
+	// Write code to temp file
+	tmpFile, cleanup, err := writeTempFile(input.Code)
+	if err != nil {
+		return nil, RunOutput{}, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer cleanup()
+
+	// Create runner
+	r := runner.NewRunner(v.Container, "")
+
+	// Execute with volume mount
+	spec := runner.RunSpec{
+		Container: v.Container,
+		Args:      nil, // No script args for MCP
+		Volumes: []runner.VolumeMount{
+			{
+				HostPath:      tmpFile,
+				ContainerPath: "/FRAGLET",
+				ReadOnly:      true,
+			},
+		},
+	}
+
+	result, err := r.Run(ctx, spec)
 	if err != nil {
 		return nil, RunOutput{}, fmt.Errorf("execution failed: %w", err)
 	}
 
-	// Format output for better rendering - wrap in code blocks for safety
-	// Don't assume stdout/stderr are markdown, so we present them as plain text code blocks
-	// Use a fence length that's longer than any sequence of backticks in the content
+	// Format output for better rendering
 	fenceForCodeBlock := func(content string) string {
 		fence := "```"
 		for strings.Contains(content, fence) {
@@ -166,10 +143,8 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 	}
 	contentParts = append(contentParts, fmt.Sprintf("**Status:** %s | **Duration:** %s", status, result.Duration.Round(time.Millisecond)))
 
-	// Also handle backticks in the input code
+	// Format code block
 	codeFence := fenceForCodeBlock(input.Code)
-	// Format code block with explicit newlines for proper markdown rendering
-	// Structure: title, blank line, opening fence+lang on one line, code on subsequent lines, closing fence, blank line, output
 	codeBlock := fmt.Sprintf("%s%s\n%s\n%s", codeFence, input.Lang, input.Code, codeFence)
 	formattedContent := fmt.Sprintf("**Code executed in `%s`:**\n\n%s\n\n%s",
 		input.Lang, codeBlock, strings.Join(contentParts, "\n\n"))
@@ -186,4 +161,25 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 			ExitCode: result.ExitCode,
 			Duration: result.Duration,
 		}, nil
+}
+
+func writeTempFile(content string) (string, func(), error) {
+	tmpFile, err := os.CreateTemp("", "fraglet-*")
+	if err != nil {
+		return "", nil, err
+	}
+
+	if _, err := tmpFile.WriteString(content); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpFile.Name())
+		return "", nil, err
+	}
+
+	tmpFile.Close()
+	os.Chmod(tmpFile.Name(), 0644)
+
+	absPath, _ := filepath.Abs(tmpFile.Name())
+	cleanup := func() { os.Remove(absPath) }
+
+	return absPath, cleanup, nil
 }

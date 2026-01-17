@@ -1,0 +1,324 @@
+veins:
+  - name: ada
+    container: 100hellos/ada:latest
+    extensions: [.adb, .ads]
+
+  - name: arnoldc
+    container: 100hellos/arnoldc:latest
+    extensions: [.arnoldc]
+
+  - name: ash
+    container: 100hellos/ash:latest
+    extensions: [.ash]
+
+  - name: ats
+    container: 100hellos/ats:latest
+    extensions: [.dats, .sats]
+
+  - name: awk
+    container: 100hellos/awk:latest
+    extensions: [.awk]
+
+  - name: ballerina
+    container: 100hellos/ballerina:latest
+    extensions: [.bal]
+
+  - name: bash
+    container: 100hellos/bash:latest
+    extensions: [.bash, .sh]
+
+  - name: bqn
+    container: 100hellos/bqn:latest
+    extensions: [.bqn]
+
+  - name: brainfuck
+    container: 100hellos/brainfuck:latest
+    extensions: [.bf, .b]
+
+  - name: ceylon
+    container: 100hellos/ceylon:latest
+    extensions: [.ceylon]
+
+  - name: chapel
+    container: 100hellos/chapel:latest
+    extensions: [.chpl]
+
+  - name: clojure
+    container: 100hellos/clojure:latest
+    extensions: [.clj, .cljs, .cljc]
+
+  - name: cpp
+    container: 100hellos/cpp:latest
+    extensions: [.cpp, .cxx, .cc, .c++]
+
+  - name: crystal
+    container: 100hellos/crystal:latest
+    extensions: [.cr]
+
+  - name: csharp
+    container: 100hellos/csharp:latest
+    extensions: [.cs]
+
+  - name: d-lang
+    container: 100hellos/d-lang:latest
+    extensions: [.d]
+
+  - name: dart
+    container: 100hellos/dart:latest
+    extensions: [.dart]
+
+  - name: dash
+    container: 100hellos/dash:latest
+    extensions: [.dash]
+
+  - name: deno
+    container: 100hellos/deno:latest
+    extensions: [.ts, .js]
+
+  - name: elixir
+    container: 100hellos/elixir:latest
+    extensions: [.ex, .exs]
+
+  - name: emojicode
+    container: 100hellos/emojicode:latest
+    extensions: [.emojic]
+
+  - name: erlang
+    container: 100hellos/erlang:latest
+    extensions: [.erl, .hrl]
+
+  - name: factor
+    container: 100hellos/factor:latest
+    extensions: [.factor]
+
+  - name: fennel
+    container: 100hellos/fennel:latest
+    extensions: [.fnl]
+
+  - name: forth
+    container: 100hellos/forth:latest
+    extensions: [.fth, .fs]
+
+  - name: fortran
+    container: 100hellos/fortran:latest
+    extensions: [.f, .f90, .f95, .f03, .f08]
+
+  - name: fsharp
+    container: 100hellos/fsharp:latest
+    extensions: [.fs, .fsx]
+
+  - name: gleam
+    container: 100hellos/gleam:latest
+    extensions: [.gleam]
+
+  - name: golang
+    container: 100hellos/golang:latest
+    extensions: [.go]
+
+  - name: groovy
+    container: 100hellos/groovy:latest
+    extensions: [.groovy, .gy]
+
+  - name: hare
+    container: 100hellos/hare:latest
+    extensions: [.ha]
+
+  - name: haskell
+    container: 100hellos/haskell:latest
+    extensions: [.hs, .lhs]
+
+  - name: idris2
+    container: 100hellos/idris2:latest
+    extensions: [.idr]
+
+  - name: io
+    container: 100hellos/io:latest
+    extensions: [.io]
+
+  - name: janet
+    container: 100hellos/janet:latest
+    extensions: [.janet]
+
+  - name: java
+    container: 100hellos/java:latest
+    extensions: [.java]
+
+  - name: javascript
+    container: 100hellos/javascript:latest
+    extensions: [.js, .mjs, .jsx]
+
+  - name: julia
+    container: 100hellos/julia:latest
+    extensions: [.jl]
+
+  - name: kotlin
+    container: 100hellos/kotlin:latest
+    extensions: [.kt, .kts]
+
+  - name: lisp
+    container: 100hellos/lisp:latest
+    extensions: [.lisp, .lsp, .cl]
+
+  - name: lolcode
+    container: 100hellos/lolcode:latest
+    extensions: [.lol]
+
+  - name: lua
+    container: 100hellos/lua:latest
+    extensions: [.lua]
+
+  - name: mercury
+    container: 100hellos/mercury:latest
+    extensions: [.m]
+
+  - name: mksh
+    container: 100hellos/mksh:latest
+    extensions: [.mksh]
+
+  - name: nasm-x86_64
+    container: 100hellos/nasm-x86_64:latest
+    extensions: [.asm, .s]
+
+  - name: nim
+    container: 100hellos/nim:latest
+    extensions: [.nim]
+
+  - name: nix
+    container: 100hellos/nix:latest
+    extensions: [.nix]
+
+  - name: objective-c
+    container: 100hellos/objective-c:latest
+    extensions: [.m, .mm]
+
+  - name: ocaml
+    container: 100hellos/ocaml:latest
+    extensions: [.ml, .mli]
+
+  - name: octave
+    container: 100hellos/octave:latest
+    extensions: [.m]
+
+  - name: odin
+    container: 100hellos/odin:latest
+    extensions: [.odin]
+
+  - name: pascal
+    container: 100hellos/pascal:latest
+    extensions: [.pas, .p]
+
+  - name: perl
+    container: 100hellos/perl:latest
+    extensions: [.pl, .pm]
+
+  - name: php
+    container: 100hellos/php:latest
+    extensions: [.php]
+
+  - name: picolisp
+    container: 100hellos/picolisp:latest
+    extensions: [.l]
+
+  - name: pony
+    container: 100hellos/pony:latest
+    extensions: [.pony]
+
+  - name: prolog
+    container: 100hellos/prolog:latest
+    extensions: [.pl, .prolog]
+
+  - name: python
+    container: 100hellos/python:latest
+    extensions: [.py, .pyw]
+
+  - name: r-project
+    container: 100hellos/r-project:latest
+    extensions: [.r, .R]
+
+  - name: racket
+    container: 100hellos/racket:latest
+    extensions: [.rkt]
+
+  - name: raku
+    container: 100hellos/raku:latest
+    extensions: [.raku, .rakumod, .rakutest, .pm6]
+
+  - name: rebol
+    container: 100hellos/rebol:latest
+    extensions: [.r, .reb]
+
+  - name: ruby
+    container: 100hellos/ruby:latest
+    extensions: [.rb]
+
+  - name: rust
+    container: 100hellos/rust:latest
+    extensions: [.rs]
+
+  - name: scala
+    container: 100hellos/scala:latest
+    extensions: [.scala, .sc]
+
+  - name: scheme
+    container: 100hellos/scheme:latest
+    extensions: [.scm, .ss]
+
+  - name: sed
+    container: 100hellos/sed:latest
+    extensions: [.sed]
+
+  - name: sml
+    container: 100hellos/sml:latest
+    extensions: [.sml, .sig]
+
+  - name: snobol4
+    container: 100hellos/snobol4:latest
+    extensions: [.sno, .snobol]
+
+  - name: tcl
+    container: 100hellos/tcl:latest
+    extensions: [.tcl]
+
+  - name: tcsh
+    container: 100hellos/tcsh:latest
+    extensions: [.tcsh, .csh]
+
+  - name: the-c-programming-language
+    container: 100hellos/the-c-programming-language:latest
+    extensions: [.c]
+
+  - name: tinygo
+    container: 100hellos/tinygo:latest
+    extensions: [.go]
+
+  - name: typescript
+    container: 100hellos/typescript:latest
+    extensions: [.ts, .tsx]
+
+  - name: vala
+    container: 100hellos/vala:latest
+    extensions: [.vala]
+
+  - name: verilog
+    container: 100hellos/verilog:latest
+    extensions: [.v, .vh]
+
+  - name: vlang
+    container: 100hellos/vlang:latest
+    extensions: [.v]
+
+  - name: wat
+    container: 100hellos/wat:latest
+    extensions: [.wat, .wast]
+
+  - name: wren
+    container: 100hellos/wren:latest
+    extensions: [.wren]
+
+  - name: zig
+    container: 100hellos/zig:latest
+    extensions: [.zig]
+
+  - name: zsh
+    container: 100hellos/zsh:latest
+    extensions: [.zsh]
