@@ -1,39 +1,11 @@
-=== Test 1: Missing required flag ===
-Usage: fragletc [flags] [script-file] [script-args...]
-
-Execute fraglet code in a container using either --vein or --image.
-
-Flags:
-  -v, --vein string
-        Vein name with optional mode (e.g., python, python:main)
-  -i, --image string
-        Container image to use directly (e.g., my-registry/python:latest)
-  -p, --fraglet-path string
-        Path where code is mounted in container (default: /FRAGLET)
-
-Positional:
-  script-file   Path to code file, or "-" for stdin
-  script-args   Arguments passed to the script inside container
-
-Examples:
-  # Infer vein from extension
-  fragletc script.py
-  fragletc script.py arg1 arg2
-
-  # Explicit vein
-  fragletc --vein=python script.py
-
-  # Vein with mode
-  fragletc --vein=c:main script.c
-
-  # Direct container image
-  fragletc --image=my-registry/python:latest script.py
-
-  # As shebang (script contains: #!/usr/bin/fragletc)
-  ./script.py arg1 arg2
+=== Test 1: No args (should show usage) ===
+Error: no code source provided. Use a script file or -c flag.
 
 === Test 2: Both --image and --vein (should error) ===
 Error: cannot specify both --image and --vein
 
 === Test 3: Invalid vein name ===
 Error: vein not found: nonexistent
+
+=== Test 4: No code source with vein ===
+Error: no code source provided. Use a script file or -c flag.

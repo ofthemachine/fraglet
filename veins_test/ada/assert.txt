@@ -1,4 +1,4 @@
 Hello from fragment!
-gcc -c hello.adb
-gnatbind -x hello.ali
-gnatlink hello.ali
+
+=== Test: Argument passing ===
+Args: foo bar baz

@@ -1,0 +1,11 @@
+=== Test 1: Inline code with --image flag ===
+Hello from inline!
+
+=== Test 2: Inline code with short -i flag ===
+Hello with short flag!
+
+=== Test 3: Inline code with custom --fraglet-path ===
+Custom path!
+
+=== Test 4: Inline code with short -p flag ===
+Short path flag!

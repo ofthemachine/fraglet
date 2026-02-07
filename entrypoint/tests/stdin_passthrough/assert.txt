@@ -1,0 +1,18 @@
+=== Test 1: Basic stdin pipe ===
+HELLO WORLD
+
+=== Test 2: Multi-line stdin ===
+ALPHA
+BETA
+GAMMA
+
+=== Test 3: Stdin + args ===
+args: arg1 arg2
+stdin: piped-data
+
+=== Test 4: No stdin ===
+no stdin needed
+args: hello world
+
+=== Test 5: Byte count ===
+10

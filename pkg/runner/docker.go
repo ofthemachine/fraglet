@@ -121,7 +121,9 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 		dockerCmd = exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
 	}
 
-	if spec.Stdin != "" {
+	if spec.StdinReader != nil {
+		dockerCmd.Stdin = spec.StdinReader
+	} else if spec.Stdin != "" {
 		dockerCmd.Stdin = bytes.NewBufferString(spec.Stdin)
 	}
 
@@ -146,25 +148,35 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 		}
 	}
 
-	// Capture stdout
-	stdoutPipe, err := dockerCmd.StdoutPipe()
-	if err != nil {
-		if cleanup != nil {
-			cleanup()
-		}
-		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+	if spec.Stdout != nil {
+		dockerCmd.Stdout = spec.Stdout
+	}
+	if spec.Stderr != nil {
+		dockerCmd.Stderr = spec.Stderr
 	}
 
-	// Capture stderr
-	stderrPipe, err := dockerCmd.StderrPipe()
-	if err != nil {
-		if cleanup != nil {
-			cleanup()
+	var stdoutPipe, stderrPipe io.ReadCloser
+	if spec.Stdout == nil {
+		var err error
+		stdoutPipe, err = dockerCmd.StdoutPipe()
+		if err != nil {
+			if cleanup != nil {
+				cleanup()
+			}
+			return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 		}
-		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+	if spec.Stderr == nil {
+		var err error
+		stderrPipe, err = dockerCmd.StderrPipe()
+		if err != nil {
+			if cleanup != nil {
+				cleanup()
+			}
+			return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
+		}
 	}
 
-	// Start command
 	if err := dockerCmd.Start(); err != nil {
 		if cleanup != nil {
 			cleanup()
@@ -172,52 +184,42 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 		return nil, fmt.Errorf("failed to start docker command: %w", err)
 	}
 
-	// Read stdout in background
-	go func() {
-		defer close(stdoutChan)
-		buf := make([]byte, 4096)
-		for {
-			n, err := stdoutPipe.Read(buf)
-			if n > 0 {
-				stdoutChan <- string(buf[:n])
-			}
-			if err != nil {
-				if err != io.EOF {
-					// Log error but continue
+	if spec.Stdout == nil {
+		go func() {
+			defer close(stdoutChan)
+			buf := make([]byte, 4096)
+			for {
+				n, err := stdoutPipe.Read(buf)
+				if n > 0 {
+					stdoutChan <- string(buf[:n])
 				}
-				break
-			}
-		}
-	}()
-
-	// Read stderr in background
-	go func() {
-		defer close(stderrChan)
-		buf := make([]byte, 4096)
-		for {
-			n, err := stderrPipe.Read(buf)
-			if n > 0 {
-				stderrChan <- string(buf[:n])
-			}
-			if err != nil {
-				if err != io.EOF {
-					// Log error but continue
+				if err != nil {
+					break
 				}
-				break
 			}
-		}
-	}()
+		}()
+	}
+	if spec.Stderr == nil {
+		go func() {
+			defer close(stderrChan)
+			buf := make([]byte, 4096)
+			for {
+				n, err := stderrPipe.Read(buf)
+				if n > 0 {
+					stderrChan <- string(buf[:n])
+				}
+				if err != nil {
+					break
+				}
+			}
+		}()
+	}
 
-	// Wait for command completion
 	go func() {
 		err := dockerCmd.Wait()
-
-		// Cleanup temp file after command completes (if one was created)
-		// This matches local runner behavior exactly
 		if cleanup != nil {
 			cleanup()
 		}
-
 		if err != nil {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				exitCodeChan <- exitErr.ExitCode()
@@ -228,6 +230,12 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 		} else {
 			exitCodeChan <- 0
 			doneChan <- nil
+		}
+		if spec.Stdout != nil {
+			close(stdoutChan)
+		}
+		if spec.Stderr != nil {
+			close(stderrChan)
 		}
 		close(exitCodeChan)
 		close(doneChan)

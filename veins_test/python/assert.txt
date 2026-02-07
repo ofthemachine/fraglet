@@ -1,1 +1,4 @@
 Hello, World!
+
+=== Test: Argument passing ===
+Args: foo bar baz

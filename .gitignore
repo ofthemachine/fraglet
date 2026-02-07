@@ -1,5 +1,6 @@
 # Binaries
 fraglet-entrypoint
+fraglet-entrypoint-linux*
 fraglet-mcp
 fragletc
 

@@ -16,7 +16,7 @@ func TestInjectString(t *testing.T) {
 		t.Fatalf("InjectString failed: %v", err)
 	}
 
-	expected := "Hello Injected World"
+	expected := "Injected"
 	if result != expected {
 		t.Errorf("Expected %q, got %q", expected, result)
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 )
@@ -63,7 +64,9 @@ func (r *localRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streamin
 	doneChan := make(chan error, 1)
 	exitCodeChan := make(chan int, 1)
 
-	if spec.Stdin != "" {
+	if spec.StdinReader != nil {
+		cmd.Stdin = spec.StdinReader
+	} else if spec.Stdin != "" {
 		cmd.Stdin = bytes.NewBufferString(spec.Stdin)
 	}
 
@@ -76,25 +79,35 @@ func (r *localRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streamin
 		cmd.Dir = spec.WorkDir
 	}
 
-	// Capture stdout
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		if cleanup != nil {
-			cleanup()
-		}
-		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+	if spec.Stdout != nil {
+		cmd.Stdout = spec.Stdout
+	}
+	if spec.Stderr != nil {
+		cmd.Stderr = spec.Stderr
 	}
 
-	// Capture stderr
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		if cleanup != nil {
-			cleanup()
+	var stdoutPipe, stderrPipe io.ReadCloser
+	if spec.Stdout == nil {
+		var err error
+		stdoutPipe, err = cmd.StdoutPipe()
+		if err != nil {
+			if cleanup != nil {
+				cleanup()
+			}
+			return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 		}
-		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+	if spec.Stderr == nil {
+		var err error
+		stderrPipe, err = cmd.StderrPipe()
+		if err != nil {
+			if cleanup != nil {
+				cleanup()
+			}
+			return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
+		}
 	}
 
-	// Start command
 	if err := cmd.Start(); err != nil {
 		if cleanup != nil {
 			cleanup()
@@ -102,45 +115,42 @@ func (r *localRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streamin
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
-	// Read stdout in background
-	go func() {
-		defer close(stdoutChan)
-		buf := make([]byte, 4096)
-		for {
-			n, err := stdoutPipe.Read(buf)
-			if n > 0 {
-				stdoutChan <- string(buf[:n])
+	if spec.Stdout == nil {
+		go func() {
+			defer close(stdoutChan)
+			buf := make([]byte, 4096)
+			for {
+				n, err := stdoutPipe.Read(buf)
+				if n > 0 {
+					stdoutChan <- string(buf[:n])
+				}
+				if err != nil {
+					break
+				}
 			}
-			if err != nil {
-				break
+		}()
+	}
+	if spec.Stderr == nil {
+		go func() {
+			defer close(stderrChan)
+			buf := make([]byte, 4096)
+			for {
+				n, err := stderrPipe.Read(buf)
+				if n > 0 {
+					stderrChan <- string(buf[:n])
+				}
+				if err != nil {
+					break
+				}
 			}
-		}
-	}()
+		}()
+	}
 
-	// Read stderr in background
-	go func() {
-		defer close(stderrChan)
-		buf := make([]byte, 4096)
-		for {
-			n, err := stderrPipe.Read(buf)
-			if n > 0 {
-				stderrChan <- string(buf[:n])
-			}
-			if err != nil {
-				break
-			}
-		}
-	}()
-
-	// Wait for command completion
 	go func() {
 		err := cmd.Wait()
-
-		// Cleanup temp file after command completes (if one was created)
 		if cleanup != nil {
 			cleanup()
 		}
-
 		if err != nil {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				exitCodeChan <- exitErr.ExitCode()
@@ -151,6 +161,12 @@ func (r *localRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streamin
 		} else {
 			exitCodeChan <- 0
 			doneChan <- nil
+		}
+		if spec.Stdout != nil {
+			close(stdoutChan)
+		}
+		if spec.Stderr != nil {
+			close(stderrChan)
 		}
 		close(exitCodeChan)
 		close(doneChan)

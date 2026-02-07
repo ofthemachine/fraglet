@@ -1,7 +1,7 @@
-=== Test 1: STDIN with --vein flag ===
+=== Test 1: Inline code with --vein flag ===
 Hello from vein!
 
-=== Test 2: STDIN with short -v flag ===
+=== Test 2: Inline code with short -v flag ===
 Short vein flag!
 
 === Test 3: File input with vein ===

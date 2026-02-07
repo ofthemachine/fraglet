@@ -77,6 +77,7 @@ func (e *Executor) executeWithArgs(args []string) (int, error) {
 	cmd := exec.Command(cmdPath, cmdArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
 	err := cmd.Run()
 	if err != nil {
 		// Extract exit code from exec.ExitError if available

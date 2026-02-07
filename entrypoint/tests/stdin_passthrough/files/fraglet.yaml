@@ -1,0 +1,8 @@
+fragletTempPath: /FRAGLET
+injection:
+  codePath: /code/stdin-reader.sh
+  match_start: bash
+  match_end: FRAGLET
+execution:
+  path: /code/stdin-reader.sh
+  makeExecutable: true

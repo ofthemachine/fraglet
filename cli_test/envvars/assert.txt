@@ -1,0 +1,16 @@
+=== Test 1: Forward host env var ===
+hello_from_host
+
+=== Test 2: Explicit KEY=VALUE ===
+explicit_value
+
+=== Test 3: Missing host var (silently skipped) ===
+correctly_absent
+
+=== Test 4: Multiple -e flags ===
+alpha
+beta
+gamma
+
+=== Test 5: Env vars don't leak without -e ===
+correctly_absent

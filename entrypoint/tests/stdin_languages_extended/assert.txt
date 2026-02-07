@@ -1,0 +1,23 @@
+=== Bash: stdin pipe ===
+HELLO FROM BASH
+
+=== Go: stdin pipe ===
+STDINWORKS
+
+=== Rust: stdin pipe ===
+HELLO FROM RUST
+
+=== Haskell: stdin pipe ===
+HELLO FROM HASKELL
+
+=== Perl: stdin pipe ===
+HELLO FROM PERL
+
+=== Lua: stdin pipe ===
+HELLO FROM LUA
+
+=== Kotlin: stdin pipe ===
+HELLO FROM KOTLIN
+
+=== Scala: stdin pipe ===
+HELLO FROM SCALA

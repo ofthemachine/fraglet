@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"io"
 	"os/exec"
 	"time"
 )
@@ -41,15 +42,18 @@ type VolumeMount struct {
 
 // RunSpec defines what to execute
 type RunSpec struct {
-	Command    string        // The command to execute (rendered template)
-	Stdin      string        // Optional stdin input
-	Container  string        // Optional container image (e.g., "python:3.11-slim")
-	Entrypoint string        // Optional entrypoint (e.g., "python" for multiline scripts)
-	Platform   string        // Optional platform (e.g., linux/amd64). Defaults to linux/amd64.
-	Env        []string      // Optional environment variables (for ENVVAR input)
-	WorkDir    string        // Optional working directory
-	Volumes    []VolumeMount // Optional volume mounts
-	Args       []string      // Arguments passed to the command
+	Command      string        // The command to execute (rendered template)
+	Stdin        string        // Optional stdin input (buffered string, for programmatic use)
+	StdinReader  io.Reader     // Optional stdin stream (takes precedence over Stdin)
+	Container    string        // Optional container image (e.g., "python:3.11-slim")
+	Entrypoint   string        // Optional entrypoint (e.g., "python" for multiline scripts)
+	Platform     string        // Optional platform (e.g., linux/amd64). Defaults to linux/amd64.
+	Env          []string      // Optional environment variables (for ENVVAR input)
+	WorkDir      string        // Optional working directory
+	Volumes      []VolumeMount // Optional volume mounts
+	Args         []string      // Arguments passed to the command
+	Stdout       io.Writer     // If non-nil, command stdout is written here; otherwise captured
+	Stderr       io.Writer     // If non-nil, command stderr is written here; otherwise captured
 	// Note: Executor field removed - Phase 2 feature when executor registry is designed
 }
 

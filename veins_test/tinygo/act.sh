@@ -1,4 +1,4 @@
 #!/bin/sh
 set -e
-chmod +x ./*.go 2>/dev/null || true
-./test.go
+chmod +x ./*.go ./*.goz 2>/dev/null || true
+./test.goz

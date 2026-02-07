@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,8 +16,17 @@ import (
 
 const defaultFragletPath = "/FRAGLET"
 
+// envListFlag implements flag.Value for repeatable -e flags.
+type envListFlag []string
+
+func (e *envListFlag) String() string { return strings.Join(*e, ",") }
+func (e *envListFlag) Set(val string) error {
+	*e = append(*e, val)
+	return nil
+}
+
 func main() {
-	// Check for subcommands before parsing flags
+	// Subcommands are checked before flag parsing
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "refresh":
@@ -32,234 +40,201 @@ func main() {
 
 	flag.Usage = usage
 
-	// Define flags
+	// Flags
 	veinSpec := flag.String("vein", "", "Vein name with optional mode (e.g., python, python:main)")
-	image := flag.String("image", "", "Container image to use directly (e.g., my-registry/python:latest)")
-	fragletPath := flag.String("fraglet-path", defaultFragletPath, "Path where code is mounted in container (default: /FRAGLET)")
+	image := flag.String("image", "", "Container image to use directly")
+	fragletPath := flag.String("fraglet-path", defaultFragletPath, "Path where code is mounted in container")
 	mode := flag.String("mode", "", "Fraglet mode (sets FRAGLET_CONFIG=/fraglet-{mode}.yml)")
+	inlineCode := flag.String("c", "", "Program passed in as string (like python -c)")
+	var envFlags envListFlag
+	flag.Var(&envFlags, "e", "Environment variable to forward (repeatable, e.g. -e FOO -e BAR=val)")
 
 	// Short forms
 	flag.StringVar(veinSpec, "v", "", "Vein name with optional mode (short form)")
 	flag.StringVar(image, "i", "", "Container image (short form)")
-	flag.StringVar(fragletPath, "p", defaultFragletPath, "Path where code is mounted in container (short form)")
+	flag.StringVar(fragletPath, "p", defaultFragletPath, "Path where code is mounted (short form)")
 	flag.StringVar(mode, "m", "", "Fraglet mode (short form)")
+	flag.StringVar(inlineCode, "code", "", "Program passed in as string (like python -c)")
 
 	flag.Parse()
 
-	// Handle positional arguments
+	// Positional: [script-file] [script-args...]
 	args := flag.Args()
 	var scriptFile string
 	var scriptArgs []string
-
 	if len(args) > 0 {
-		if args[0] == "-" {
-			// Explicit stdin, remaining args are script args
-			scriptArgs = args[1:]
-		} else {
-			// First arg is script file, remaining are script args
-			scriptFile = args[0]
-			scriptArgs = args[1:]
-		}
+		scriptFile = args[0]
+		scriptArgs = args[1:]
 	}
 
-	// Determine vein and mode
-	var veinName, finalMode string
-	var err error
+	// --- Resolve vein + mode ---
+	veinName, finalMode := resolveVeinAndMode(*veinSpec, *mode, *image, scriptFile)
 
-	if *veinSpec != "" {
-		// Parse vein:mode syntax
+	// Validate mutual exclusion early (before code resolution)
+	if *image != "" && veinName != "" {
+		fatal("Error: cannot specify both --image and --vein")
+	}
+
+	// --- Resolve code ---
+	code := resolveCode(*inlineCode, scriptFile)
+
+	// --- Resolve container + fraglet mount path ---
+	containerImage, fragletMountPath := resolveContainer(veinName, *image, *fragletPath)
+
+	// --- Build env vars ---
+	envVars := buildEnvVars(finalMode, envFlags)
+
+	// --- Write temp file, build spec, execute ---
+	tmpFile, cleanup, err := writeTempFile(code)
+	if err != nil {
+		fatal("Error creating temp file: %v", err)
+	}
+	defer cleanup()
+
+	r := runner.NewRunner(containerImage, "")
+	spec := runner.RunSpec{
+		Container:   containerImage,
+		Env:         envVars,
+		Args:        scriptArgs,
+		StdinReader: os.Stdin,
+		Stdout:      os.Stdout,
+		Stderr:      os.Stderr,
+		Volumes: []runner.VolumeMount{
+			{
+				HostPath:      tmpFile,
+				ContainerPath: fragletMountPath,
+				ReadOnly:      true,
+			},
+		},
+	}
+
+	result, err := r.Run(context.Background(), spec)
+	if err != nil {
+		fatal("Execution failed: %v", err)
+	}
+	os.Exit(result.ExitCode)
+}
+
+// resolveVeinAndMode determines the vein name and mode from flags and file extension.
+// Exits on validation errors.
+func resolveVeinAndMode(veinSpec, modeFlag, image, scriptFile string) (veinName, mode string) {
+	if veinSpec != "" {
 		var parsedMode string
-		veinName, parsedMode, err = parseVeinSpec(*veinSpec)
+		var err error
+		veinName, parsedMode, err = parseVeinSpec(veinSpec)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			fatal("Error: %v", err)
 		}
-		// Use mode from flag if provided, otherwise use parsed mode
-		if *mode != "" {
-			if parsedMode != "" {
-				fmt.Fprintf(os.Stderr, "Error: mode specified both in --vein and --mode flags\n")
-				os.Exit(1)
-			}
-			finalMode = *mode
+		if modeFlag != "" && parsedMode != "" {
+			fatal("Error: mode specified both in --vein and --mode flags")
+		}
+		if parsedMode != "" {
+			mode = parsedMode
 		} else {
-			finalMode = parsedMode
+			mode = modeFlag
 		}
-	} else if *mode != "" {
-		// Mode specified without vein (only valid with --image)
-		finalMode = *mode
+		return
 	}
 
-	if scriptFile != "" && *image == "" && veinName == "" {
-		// Try to infer from extension (only if --image is not specified)
-		registry, regErr := loadVeinRegistry()
-		if regErr != nil {
-			fmt.Fprintf(os.Stderr, "Error loading veins: %v\n", regErr)
-			os.Exit(1)
+	mode = modeFlag
+
+	// Infer vein from file extension when no --vein and no --image
+	if scriptFile != "" && image == "" {
+		registry, err := loadVeinRegistry()
+		if err != nil {
+			fatal("Error loading veins: %v", err)
 		}
 		extMap := vein.NewExtensionMap(registry)
 		veinName, err = extMap.VeinForFile(scriptFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			fatal("Error: %v", err)
 		}
-	} else if *image == "" && veinName == "" {
-		// No vein, no image, no file - error
-		usage()
-		os.Exit(1)
 	}
 
-	// Validate: cannot specify both image and vein
-	if *image != "" && veinName != "" {
-		fmt.Fprintf(os.Stderr, "Error: cannot specify both --image and --vein\n")
-		os.Exit(1)
+	return
+}
+
+// resolveCode reads code from -c flag or script file. Exits if no source is provided.
+func resolveCode(inlineCode, scriptFile string) string {
+	if inlineCode != "" {
+		return inlineCode
 	}
-
-	var code string
-
-	// Read code from file if provided, otherwise from STDIN
 	if scriptFile != "" {
-		codeBytes, err := os.ReadFile(scriptFile)
+		data, err := os.ReadFile(scriptFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", scriptFile, err)
-			os.Exit(1)
+			fatal("Error reading file %s: %v", scriptFile, err)
 		}
-		code = string(codeBytes)
-		// Strip shebang if present
-		code = stripShebang(code)
-	} else {
-		// Read from STDIN
-		codeBytes, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading from STDIN: %v\n", err)
-			os.Exit(1)
-		}
-		code = string(codeBytes)
+		return stripShebang(string(data))
 	}
+	fatal("Error: no code source provided. Use a script file or -c flag.")
+	return "" // unreachable
+}
 
-	ctx := context.Background()
-	var result *runner.RunResult
-
+// resolveContainer determines the container image and fraglet mount path.
+// Exits on validation errors.
+func resolveContainer(veinName, image, fragletPath string) (containerImage, mountPath string) {
 	if veinName != "" {
-		// Use vein
 		registry, err := loadVeinRegistry()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading veins: %v\n", err)
-			os.Exit(1)
+			fatal("Error loading veins: %v", err)
 		}
-
 		v, ok := registry.Get(veinName)
 		if !ok {
-			fmt.Fprintf(os.Stderr, "Error: vein not found: %s\n", veinName)
-			os.Exit(1)
+			fatal("Error: vein not found: %s", veinName)
 		}
-
-		// Build environment variables for mode
-		var envVars []string
-		if finalMode != "" {
-			// Mode convention: /fraglet-{mode}.yml or /fraglet-{mode}.yaml
-			envVars = append(envVars, fmt.Sprintf("FRAGLET_CONFIG=/fraglet-%s.yml", finalMode))
-		}
-
-		// Write code to temp file
-		tmpFile, cleanup, err := writeTempFile(code)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating temp file: %v\n", err)
-			os.Exit(1)
-		}
-		defer cleanup()
-
-		// Create runner
-		r := runner.NewRunner(v.Container, "")
-
-		// Execute with volume mount at fragletPath
-		spec := runner.RunSpec{
-			Container: v.Container,
-			Env:       envVars,
-			Args:      scriptArgs,
-			Volumes: []runner.VolumeMount{
-				{
-					HostPath:      tmpFile,
-					ContainerPath: defaultFragletPath,
-					ReadOnly:      true,
-				},
-			},
-		}
-
-		runResult, runErr := r.Run(ctx, spec)
-		result = &runResult
-		err = runErr
-	} else {
-		// Use direct container image
-		containerImage := *image
-		finalFragletPath := *fragletPath
-
-		// Build environment variables for mode
-		var envVars []string
-		if finalMode != "" {
-			// Mode convention: /fraglet-{mode}.yml or /fraglet-{mode}.yaml
-			envVars = append(envVars, fmt.Sprintf("FRAGLET_CONFIG=/fraglet-%s.yml", finalMode))
-		}
-
-		// Write code to temp file
-		tmpFile, cleanup, err := writeTempFile(code)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating temp file: %v\n", err)
-			os.Exit(1)
-		}
-		defer cleanup()
-
-		// Create runner
-		r := runner.NewRunner(containerImage, "")
-
-		// Execute with volume mount at fragletPath
-		spec := runner.RunSpec{
-			Container: containerImage,
-			Env:       envVars,
-			Args:      scriptArgs,
-			Volumes: []runner.VolumeMount{
-				{
-					HostPath:      tmpFile,
-					ContainerPath: finalFragletPath,
-					ReadOnly:      true,
-				},
-			},
-		}
-
-		runResult, runErr := r.Run(ctx, spec)
-		result = &runResult
-		err = runErr
+		return v.Container, defaultFragletPath
 	}
 
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Execution failed: %v\n", err)
-		os.Exit(1)
+	if image != "" {
+		return image, fragletPath
 	}
 
-	// Output results
-	if result.Stdout != "" {
-		fmt.Print(result.Stdout)
-	}
-	if result.Stderr != "" {
-		fmt.Fprint(os.Stderr, result.Stderr)
-	}
-
-	// Exit with the same code as the execution
-	os.Exit(result.ExitCode)
+	fatal("Error: no container target. Specify --vein or --image.")
+	return "", "" // unreachable
 }
 
-// parseVeinSpec parses "vein" or "vein:mode" syntax
+// buildEnvVars constructs the environment variable list from mode and -e flags.
+// For -e entries: "KEY=VALUE" passes through as-is, "KEY" looks up the host env.
+func buildEnvVars(mode string, envFlags envListFlag) []string {
+	var envVars []string
+	if mode != "" {
+		envVars = append(envVars, fmt.Sprintf("FRAGLET_CONFIG=/fraglet-%s.yml", mode))
+	}
+	for _, entry := range envFlags {
+		if strings.Contains(entry, "=") {
+			// Explicit KEY=VALUE
+			envVars = append(envVars, entry)
+		} else {
+			// Forward host env var by name
+			if val, ok := os.LookupEnv(entry); ok {
+				envVars = append(envVars, entry+"="+val)
+			}
+			// Silently skip vars not set on the host — no leaking, no errors
+		}
+	}
+	return envVars
+}
+
+// fatal prints to stderr and exits.
+func fatal(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, format+"\n", args...)
+	os.Exit(1)
+}
+
+// parseVeinSpec parses "vein" or "vein:mode" syntax.
 func parseVeinSpec(spec string) (veinName, mode string, err error) {
 	parts := strings.Split(spec, ":")
-	if len(parts) == 1 {
+	switch len(parts) {
+	case 1:
 		return parts[0], "", nil
-	}
-	if len(parts) == 2 {
+	case 2:
 		return parts[0], parts[1], nil
+	default:
+		return "", "", fmt.Errorf("invalid vein spec format: %s (expected 'vein' or 'vein:mode')", spec)
 	}
-	return "", "", fmt.Errorf("invalid vein spec format: %s (expected 'vein' or 'vein:mode')", spec)
 }
 
-// loadVeinRegistry loads veins using the auto-loading mechanism
+// loadVeinRegistry loads veins using the auto-loading mechanism.
 func loadVeinRegistry() (*vein.VeinRegistry, error) {
 	return vein.LoadAuto(embed.LoadEmbeddedVeins)
 }
@@ -269,19 +244,16 @@ func writeTempFile(content string) (string, func(), error) {
 	if err != nil {
 		return "", nil, err
 	}
-
 	if _, err := tmpFile.WriteString(content); err != nil {
 		tmpFile.Close()
 		os.Remove(tmpFile.Name())
 		return "", nil, err
 	}
-
 	tmpFile.Close()
 	os.Chmod(tmpFile.Name(), 0644)
 
 	absPath, _ := filepath.Abs(tmpFile.Name())
 	cleanup := func() { os.Remove(absPath) }
-
 	return absPath, cleanup, nil
 }
 
@@ -316,32 +288,24 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 	refreshFlags.Parse(os.Args[2:])
 	args := refreshFlags.Args()
 
-	// Load vein registry (respects FRAGLET_VEINS_PATH)
 	registry, err := loadVeinRegistry()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading veins: %v\n", err)
-		os.Exit(1)
+		fatal("Error loading veins: %v", err)
 	}
 
 	var veinsToRefresh []*vein.Vein
 
 	if *all {
-		// Refresh all veins
-		veinNames := registry.List()
-		for _, name := range veinNames {
-			v, ok := registry.Get(name)
-			if !ok {
-				continue
+		for _, name := range registry.List() {
+			if v, ok := registry.Get(name); ok {
+				veinsToRefresh = append(veinsToRefresh, v)
 			}
-			veinsToRefresh = append(veinsToRefresh, v)
 		}
 	} else if len(args) > 0 {
-		// Refresh specific vein(s)
 		for _, name := range args {
 			v, ok := registry.Get(name)
 			if !ok {
-				fmt.Fprintf(os.Stderr, "Error: vein not found: %s\n", name)
-				os.Exit(1)
+				fatal("Error: vein not found: %s", name)
 			}
 			veinsToRefresh = append(veinsToRefresh, v)
 		}
@@ -350,7 +314,6 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 		os.Exit(1)
 	}
 
-	// Pull images
 	ctx := context.Background()
 	platform := "linux/amd64"
 	failed := false
@@ -403,28 +366,21 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 
 	veinName := args[0]
 
-	// Load vein registry (respects FRAGLET_VEINS_PATH)
 	registry, err := loadVeinRegistry()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading veins: %v\n", err)
-		os.Exit(1)
+		fatal("Error loading veins: %v", err)
 	}
 
 	v, ok := registry.Get(veinName)
 	if !ok {
-		fmt.Fprintf(os.Stderr, "Error: vein not found: %s\n", veinName)
-		os.Exit(1)
+		fatal("Error: vein not found: %s", veinName)
 	}
 
-	// Build environment variables for mode
 	var envVars []string
 	if *mode != "" {
-		// Mode convention: /fraglet-{mode}.yml or /fraglet-{mode}.yaml
 		envVars = append(envVars, fmt.Sprintf("FRAGLET_CONFIG=/fraglet-%s.yml", *mode))
 	}
 
-	// Run container with "guide" as first argument
-	ctx := context.Background()
 	r := runner.NewRunner(v.Container, "")
 	spec := runner.RunSpec{
 		Container: v.Container,
@@ -432,10 +388,9 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 		Args:      []string{"guide"},
 	}
 
-	result, err := r.Run(ctx, spec)
+	result, err := r.Run(context.Background(), spec)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error running guide: %v\n", err)
-		os.Exit(1)
+		fatal("Error running guide: %v", err)
 	}
 
 	if result.Stderr != "" {
@@ -444,7 +399,6 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 	if result.Stdout != "" {
 		fmt.Print(result.Stdout)
 	}
-
 	os.Exit(result.ExitCode)
 }
 
@@ -459,14 +413,23 @@ Flags:
         Vein name with optional mode (e.g., python, python:main)
   -i, --image string
         Container image to use directly (e.g., my-registry/python:latest)
+  -c, --code string
+        Program passed in as string (like python -c)
+  -e string
+        Environment variable to forward into container (repeatable)
+        Use -e FOO to forward host value, -e FOO=bar for explicit value
   -p, --fraglet-path string
         Path where code is mounted in container (default: /FRAGLET)
   -m, --mode string
         Fraglet mode (sets FRAGLET_CONFIG=/fraglet-{mode}.yml)
 
 Positional:
-  script-file   Path to code file, or "-" for stdin
+  script-file   Path to code file (required if -c not set)
   script-args   Arguments passed to the script inside container
+
+Stdin:
+  Stdin is always forwarded to the program inside the container.
+  Use pipes to send data: echo "hello" | fragletc --vein=python script.py
 
 Subcommands:
   refresh       Refresh (pull) container images for veins
@@ -482,16 +445,26 @@ Examples:
   # Explicit vein
   fragletc --vein=python script.py
 
+  # Inline code (like python -c)
+  fragletc --vein=python -c 'print("hello")'
+
+  # Pipe data to script
+  echo "hello world" | fragletc --vein=python script.py
+  cat data.csv | ./process.py --format=json
+
+  # Forward environment variables
+  fragletc --vein=python -e DATABASE_URL -e DEBUG=1 script.py
+
+  # In a shebang
+  #!/usr/bin/env -S fragletc --vein=python -e API_KEY
+
   # Vein with mode (via vein:mode syntax)
   fragletc --vein=c:main script.c
-
-  # Vein with mode (via --mode flag)
-  fragletc --vein=python --mode=main script.py
 
   # Direct container image with mode
   fragletc --image=my-registry/python:latest --mode=main script.py
 
-  # As shebang (script contains: #!/usr/bin/fragletc)
+  # As shebang (script contains: #!/usr/bin/env -S fragletc --vein=python)
   ./script.py arg1 arg2
 
   # Refresh veins
