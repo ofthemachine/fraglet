@@ -43,8 +43,8 @@ func LanguageHelp(ctx context.Context, req *mcp.CallToolRequest, input LanguageH
 		return nil, LanguageHelpOutput{}, fmt.Errorf("unsupported language: %s", input.Lang)
 	}
 
-	// Run docker command to get guide
-	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", v.Container, "guide")
+	// Run docker command to get guide (ContainerImage applies FRAGLET_VEINS_FORCE_TAG if set)
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", v.ContainerImage(), "guide")
 
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout

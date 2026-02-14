@@ -94,12 +94,13 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 	}
 	defer cleanup()
 
-	// Create runner
-	r := runner.NewRunner(v.Container, "")
+	// Create runner (ContainerImage applies FRAGLET_VEINS_FORCE_TAG if set)
+	img := v.ContainerImage()
+	r := runner.NewRunner(img, "")
 
 	// Execute with volume mount
 	spec := runner.RunSpec{
-		Container: v.Container,
+		Container: img,
 		Args:      nil, // No script args for MCP
 		Volumes: []runner.VolumeMount{
 			{

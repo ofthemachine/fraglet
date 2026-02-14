@@ -1,6 +1,10 @@
 package vein
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+	"strings"
+)
 
 // Vein defines an injection point for fraglet code
 type Vein struct {
@@ -41,6 +45,26 @@ func (r *VeinRegistry) Add(vein *Vein) error {
 func (r *VeinRegistry) Get(name string) (*Vein, bool) {
 	vein, ok := r.veins[name]
 	return vein, ok
+}
+
+// ContainerImage returns the container image for this vein, applying
+// FRAGLET_VEINS_FORCE_TAG if set (e.g. "local" to use locally built images).
+func (v *Vein) ContainerImage() string {
+	return ApplyForceTag(v.Container)
+}
+
+// ApplyForceTag returns container with tag overridden when FRAGLET_VEINS_FORCE_TAG is set.
+// Example: 100hellos/python:latest + FRAGLET_VEINS_FORCE_TAG=local → 100hellos/python:local
+func ApplyForceTag(container string) string {
+	tag := os.Getenv("FRAGLET_VEINS_FORCE_TAG")
+	if tag == "" {
+		return container
+	}
+	lastColon := strings.LastIndex(container, ":")
+	if lastColon == -1 {
+		return container + ":" + tag
+	}
+	return container[:lastColon] + ":" + tag
 }
 
 // List returns all vein names

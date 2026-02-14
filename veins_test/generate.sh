@@ -20,7 +20,7 @@ fi
 
 if [[ ! -d "$HELLOS_ROOT" ]]; then
     echo "Error: 100hellos directory not found at $HELLOS_ROOT" >&2
-    echo "Set 100HELLOS_ROOT environment variable to override" >&2
+    echo "Set HELLOS_ROOT environment variable to override" >&2
     exit 1
 fi
 
@@ -57,26 +57,19 @@ get_extension() {
     ' "$VEINS_YML" | head -1
 }
 
-# Extract code from verify.sh (first example after verify_fraglet)
+# Extract code from verify.sh (first heredoc: either verify_fraglet "..." <<EOF or cat > "$tmp" <<'EOF')
 extract_from_verify() {
     local verify_file="$1"
     if [[ ! -f "$verify_file" ]]; then
         return 1
     fi
 
-    # Find first verify_fraglet call and extract the heredoc
+    # Find first heredoc (<<'EOF', <<"EOF", or <<EOF) and extract body (lines after until ^EOF$)
     awk '
-        /verify_fraglet/ {
-            # Skip until we find <<
+        /<<[\047"]?EOF[\047"]?/ {
             while (getline > 0) {
-                if (/<</) {
-                    # Read until EOF marker
-                    while (getline > 0) {
-                        if (/^EOF$/) break
-                        print
-                    }
-                    exit
-                }
+                if ($0 == "EOF") exit
+                print
             }
         }
     ' "$verify_file"
@@ -207,7 +200,7 @@ generate_lang() {
 
     echo "  Created: $script_file (from $code_source)"
 
-    # Create act.sh
+    # Create act.sh (single smoke test; add echo_args/stdin scripts manually if desired)
     local act_file="$lang_dir/act.sh"
     {
         echo "#!/bin/sh"
@@ -217,7 +210,7 @@ generate_lang() {
     } > "$act_file"
     chmod +x "$act_file"
 
-    # Generate assert.txt by running the script
+    # Generate assert.txt by running the main script
     # Note: This requires fragletc to be available
     local assert_file="$lang_dir/assert.txt"
     if command -v fragletc >/dev/null 2>&1; then

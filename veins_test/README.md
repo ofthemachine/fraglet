@@ -121,8 +121,10 @@ The `generate.sh` script can generate tests from 100hellos sources:
 The generator:
 - Determines file extension from `pkg/embed/veins.yml`
 - Creates shebang scripts with code
-- Generates minimal `act.sh`
+- Generates minimal `act.sh` (one smoke test)
 - Attempts to generate `assert.txt` by running the script (requires fragletc)
+
+To add argument or stdin tests for a vein, add `echo_args.<ext>` and/or `stdin_upper.<ext>` and extend `act.sh` manually (see Argument Passing Tests and existing python/ruby/c veins).
 
 ## Multiple Tests Per Vein
 

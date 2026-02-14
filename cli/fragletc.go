@@ -182,7 +182,7 @@ func resolveContainer(veinName, image, fragletPath string) (containerImage, moun
 		if !ok {
 			fatal("Error: vein not found: %s", veinName)
 		}
-		return v.Container, defaultFragletPath
+		return v.ContainerImage(), defaultFragletPath
 	}
 
 	if image != "" {
@@ -319,12 +319,13 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 	failed := false
 
 	for _, v := range veinsToRefresh {
-		fmt.Printf("Pulling %s (%s)...\n", v.Name, v.Container)
-		cmd := exec.CommandContext(ctx, "docker", "pull", "--platform", platform, v.Container)
+		img := v.ContainerImage()
+		fmt.Printf("Pulling %s (%s)...\n", v.Name, img)
+		cmd := exec.CommandContext(ctx, "docker", "pull", "--platform", platform, img)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: failed to pull %s: %v\n", v.Container, err)
+			fmt.Fprintf(os.Stderr, "Error: failed to pull %s: %v\n", img, err)
 			failed = true
 		}
 	}
@@ -381,9 +382,10 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 		envVars = append(envVars, fmt.Sprintf("FRAGLET_CONFIG=/fraglet-%s.yml", *mode))
 	}
 
-	r := runner.NewRunner(v.Container, "")
+	img := v.ContainerImage()
+	r := runner.NewRunner(img, "")
 	spec := runner.RunSpec{
-		Container: v.Container,
+		Container: img,
 		Env:       envVars,
 		Args:      []string{"guide"},
 	}
