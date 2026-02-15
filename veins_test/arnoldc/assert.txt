@@ -1,4 +1,11 @@
 Hello, World!
 
-=== Test: Stdin (integer read) ===
+=== Test: Quotes (multi-line) ===
+Arnold says hello!
+Hasta la vista, baby!
+
+=== Test: Math (5 + 10) ===
+15
+
+=== Test: Stdin (integer read, doubled) ===
 84

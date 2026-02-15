@@ -1,3 +1,5 @@
 #!/usr/bin/env -S fragletc --vein=arnoldc
-TALK TO THE HAND "Fraglet"
-TALK TO THE HAND "Rules!"
+IT'S SHOWTIME
+  TALK TO THE HAND "Arnold says hello!"
+  TALK TO THE HAND "Hasta la vista, baby!"
+YOU HAVE BEEN TERMINATED

@@ -1,0 +1,4 @@
+Hello from fragment!
+
+=== Test: Stdin (integer read) ===
+42 
