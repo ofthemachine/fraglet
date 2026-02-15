@@ -103,7 +103,7 @@ func main() {
 			{
 				HostPath:      tmpFile,
 				ContainerPath: fragletMountPath,
-				ReadOnly:      true,
+				// Writable: false (default) = read-only mount
 			},
 		},
 	}

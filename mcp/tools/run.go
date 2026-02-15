@@ -98,15 +98,15 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 	img := v.ContainerImage()
 	r := runner.NewRunner(img, "")
 
-	// Execute with volume mount
+	// Execute with volume mount. Stdin and script args are not passed through the MCP run tool (code-only).
 	spec := runner.RunSpec{
 		Container: img,
-		Args:      nil, // No script args for MCP
+		Args:      nil,
 		Volumes: []runner.VolumeMount{
 			{
 				HostPath:      tmpFile,
 				ContainerPath: "/FRAGLET",
-				ReadOnly:      true,
+				// Writable: false (default) = read-only mount
 			},
 		},
 	}

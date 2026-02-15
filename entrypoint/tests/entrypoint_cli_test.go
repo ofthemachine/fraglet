@@ -19,7 +19,7 @@ func TestCLI(t *testing.T) {
 		BaseDirs:          []string{testDir},
 		EnvOverrideVar:    "ENTRYPOINT_TEST_SUITE_DIR",
 		BinaryName:        "fraglet-entrypoint",
-		BuildCommand:      []string{"sh", "-c", "cd entrypoint && go build -o ../fraglet-entrypoint ./cmd"},
+		BuildCommand:      []string{"sh", "-c", "cd entrypoint && GOOS=linux GOARCH=amd64 go build -o ../fraglet-entrypoint ./cmd"},
 		ProjectRootMarker: "go.mod",
 	}
 

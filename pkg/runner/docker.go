@@ -8,6 +8,72 @@ import (
 	"os/exec"
 )
 
+// dockerRunBuilder constructs "docker run ..." argv in a consistent order:
+// base (run, --rm, -i, platform, hardening) → opts (volumes, env, workdir, entrypoint) → image → args.
+// Add options via methods, then call Build() to get the full []string for exec.
+type dockerRunBuilder struct {
+	args []string
+}
+
+func newDockerRunBuilder(platform string) *dockerRunBuilder {
+	return &dockerRunBuilder{
+		args: []string{
+			"docker", "run", "--rm", "-i", "--platform", platform,
+			"--cap-drop=all", "--security-opt=no-new-privileges",
+		},
+	}
+}
+
+// readOnly: true = :ro mount (default for secure-by-default); false = read-write.
+func (b *dockerRunBuilder) Volume(hostPath, containerPath string, readOnly bool) *dockerRunBuilder {
+	spec := fmt.Sprintf("%s:%s", hostPath, containerPath)
+	if readOnly {
+		spec += ":ro"
+	}
+	b.args = append(b.args, "-v", spec)
+	return b
+}
+
+func (b *dockerRunBuilder) Volumes(volumes []VolumeMount) *dockerRunBuilder {
+	for _, vol := range volumes {
+		b.Volume(vol.HostPath, vol.ContainerPath, !vol.Writable) // read-only by default
+	}
+	return b
+}
+
+func (b *dockerRunBuilder) Env(env []string) *dockerRunBuilder {
+	for _, e := range env {
+		b.args = append(b.args, "-e", e)
+	}
+	return b
+}
+
+func (b *dockerRunBuilder) WorkDir(dir string) *dockerRunBuilder {
+	if dir != "" {
+		b.args = append(b.args, "-w", dir)
+	}
+	return b
+}
+
+func (b *dockerRunBuilder) Entrypoint(ep string) *dockerRunBuilder {
+	b.args = append(b.args, "--entrypoint", ep)
+	return b
+}
+
+func (b *dockerRunBuilder) Image(image string) *dockerRunBuilder {
+	b.args = append(b.args, image)
+	return b
+}
+
+func (b *dockerRunBuilder) Args(a ...string) *dockerRunBuilder {
+	b.args = append(b.args, a...)
+	return b
+}
+
+func (b *dockerRunBuilder) Build() []string {
+	return b.args
+}
+
 // dockerRunner executes commands inside Docker containers
 type dockerRunner struct{}
 
@@ -54,98 +120,47 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 	doneChan := make(chan error, 1)
 	exitCodeChan := make(chan int, 1)
 
-	var dockerCmd *exec.Cmd
+	var args []string
 	var tempFile string
 	var cleanup func()
-	var cmdArgs []string
 
-	// Start building docker run command
-	cmdArgs = append(cmdArgs, "docker", "run", "--rm", "-i", "--platform", platform)
-
-	// Build docker command based on what's provided
-	if len(spec.Volumes) > 0 && spec.Command == "" && spec.Entrypoint == "" {
-		// Volumes only: mount and let container's default entrypoint handle execution
-		// This is for fraglet-entrypoint containers
-		for _, vol := range spec.Volumes {
-			mountSpec := fmt.Sprintf("%s:%s", vol.HostPath, vol.ContainerPath)
-			if vol.ReadOnly {
-				mountSpec += ":ro"
-			}
-			cmdArgs = append(cmdArgs, "-v", mountSpec)
-		}
-		// Add env vars
-		for _, env := range spec.Env {
-			cmdArgs = append(cmdArgs, "-e", env)
-		}
-		// Add workdir
-		if spec.WorkDir != "" {
-			cmdArgs = append(cmdArgs, "-w", spec.WorkDir)
-		}
-		// Add container name at the end
-		cmdArgs = append(cmdArgs, spec.Container)
-		// Append script args after container name
-		cmdArgs = append(cmdArgs, spec.Args...)
-		dockerCmd = exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
-	} else if spec.Entrypoint != "" {
-		// Entrypoint specified: use it to execute command
-		if spec.Command != "" {
-			// Write command to temp file and mount it
-			var err error
-			tempFile, cleanup, err = writeTempScript(spec.Command)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create temp script: %w", err)
-			}
-			cmdArgs := []string{"docker", "run", "--rm", "-i", "--platform", platform,
-				"--entrypoint", spec.Entrypoint,
-				"-v", fmt.Sprintf("%s:/tmp/script:ro", tempFile),
-				spec.Container,
-				"/tmp/script"}
-			cmdArgs = append(cmdArgs, spec.Args...)
-			dockerCmd = exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
-		} else {
-			// Entrypoint with no command - just use entrypoint
-			cmdArgs = append(cmdArgs, "--entrypoint", spec.Entrypoint, spec.Container)
-			cmdArgs = append(cmdArgs, spec.Args...)
-			dockerCmd = exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
-		}
-	} else if spec.Command != "" {
-		// Command specified: execute via sh -c
-		dockerCmd = exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "--platform", platform,
-			spec.Container,
-			"sh", "-c", spec.Command)
-		// Args don't make sense with sh -c (they'd be part of the command string)
-	} else {
-		// Nothing specified - just run container
-		cmdArgs = append(cmdArgs, spec.Container)
-		cmdArgs = append(cmdArgs, spec.Args...)
-		dockerCmd = exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
+	base := newDockerRunBuilder(platform)
+	withCommon := func(b *dockerRunBuilder) *dockerRunBuilder {
+		return b.Env(spec.Env).WorkDir(spec.WorkDir).Volumes(spec.Volumes)
 	}
+
+	switch {
+	case len(spec.Volumes) > 0 && spec.Command == "" && spec.Entrypoint == "":
+		// Volumes only: fraglet-entrypoint containers; default entrypoint runs mounted fraglet.
+		args = withCommon(base).Image(spec.Container).Args(spec.Args...).Build()
+	case spec.Entrypoint != "" && spec.Command != "":
+		// Entrypoint + command: write command to temp file, mount it, run via entrypoint.
+		var err error
+		tempFile, cleanup, err = writeTempScript(spec.Command)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create temp script: %w", err)
+		}
+		args = base.Entrypoint(spec.Entrypoint).
+			Volume(tempFile, "/tmp/script", true).
+			Env(spec.Env).WorkDir(spec.WorkDir).Volumes(spec.Volumes).
+			Image(spec.Container).Args("/tmp/script").Args(spec.Args...).Build()
+	case spec.Entrypoint != "":
+		// Entrypoint only: no command body.
+		args = withCommon(base.Entrypoint(spec.Entrypoint)).Image(spec.Container).Args(spec.Args...).Build()
+	case spec.Command != "":
+		// Command via sh -c; args don't apply.
+		args = withCommon(base).Image(spec.Container).Args("sh", "-c", spec.Command).Build()
+	default:
+		// Plain run: image + optional args.
+		args = withCommon(base).Image(spec.Container).Args(spec.Args...).Build()
+	}
+
+	dockerCmd := exec.CommandContext(ctx, args[0], args[1:]...)
 
 	if spec.StdinReader != nil {
 		dockerCmd.Stdin = spec.StdinReader
 	} else if spec.Stdin != "" {
 		dockerCmd.Stdin = bytes.NewBufferString(spec.Stdin)
-	}
-
-	if spec.Env != nil {
-		for _, env := range spec.Env {
-			dockerCmd.Args = append(dockerCmd.Args, "-e", env)
-		}
-	}
-
-	if spec.WorkDir != "" {
-		dockerCmd.Args = append(dockerCmd.Args, "-w", spec.WorkDir)
-	}
-
-	// Add volume mounts (only if not already added in volumes-only case above)
-	if !(len(spec.Volumes) > 0 && spec.Command == "" && spec.Entrypoint == "") {
-		for _, vol := range spec.Volumes {
-			mountSpec := fmt.Sprintf("%s:%s", vol.HostPath, vol.ContainerPath)
-			if vol.ReadOnly {
-				mountSpec += ":ro"
-			}
-			dockerCmd.Args = append(dockerCmd.Args, "-v", mountSpec)
-		}
 	}
 
 	if spec.Stdout != nil {

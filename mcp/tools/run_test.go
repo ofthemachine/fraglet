@@ -40,6 +40,56 @@ func TestRun_Python(t *testing.T) {
 	}
 }
 
+func TestRun_Ruby(t *testing.T) {
+	if !isDockerAvailable() {
+		t.Skip("Docker not available, skipping test")
+	}
+
+	ctx := context.Background()
+	input := RunInput{
+		Lang: "ruby",
+		Code: "puts 'Hello from Ruby!'",
+	}
+
+	_, output, err := Run(ctx, nil, input)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if output.ExitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d. Stderr: %s", output.ExitCode, output.Stderr)
+	}
+
+	if !strings.Contains(output.Stdout, "Hello from Ruby!") {
+		t.Errorf("Expected stdout to contain 'Hello from Ruby!', got %q", output.Stdout)
+	}
+}
+
+func TestRun_JavaScript(t *testing.T) {
+	if !isDockerAvailable() {
+		t.Skip("Docker not available, skipping test")
+	}
+
+	ctx := context.Background()
+	input := RunInput{
+		Lang: "javascript",
+		Code: "console.log('Hello from JavaScript!');",
+	}
+
+	_, output, err := Run(ctx, nil, input)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if output.ExitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d. Stderr: %s", output.ExitCode, output.Stderr)
+	}
+
+	if !strings.Contains(output.Stdout, "Hello from JavaScript!") {
+		t.Errorf("Expected stdout to contain 'Hello from JavaScript!', got %q", output.Stdout)
+	}
+}
+
 func TestRun_UnsupportedLanguage(t *testing.T) {
 	ctx := context.Background()
 	input := RunInput{

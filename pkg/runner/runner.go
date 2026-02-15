@@ -33,11 +33,12 @@ type StreamingResult struct {
 	ExitCode <-chan int    // Channel that receives exit code when available
 }
 
-// VolumeMount defines a volume mount for container execution
+// VolumeMount defines a volume mount for container execution.
+// Writable defaults to false (read-only mount); set true only when the container must write.
 type VolumeMount struct {
 	HostPath      string // Path on the host
 	ContainerPath string // Path inside the container
-	ReadOnly      bool   // Whether the mount is read-only
+	Writable      bool   // If true, mount is read-write; default false = read-only (secure by default)
 }
 
 // RunSpec defines what to execute
