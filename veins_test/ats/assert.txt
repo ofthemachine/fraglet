@@ -1,1 +1,11 @@
 Hello from fragment!
+
+=== Test: Stdin ===
+hello
+
+
+=== Test: Argument passing ===
+./hello_world
+foo
+bar
+baz
