@@ -1,0 +1,17 @@
+Hello from fragment!
+
+=== Fibonacci (many-line) ===
+1 1 2 3 5 8 13 21 34 55 89 144 233 377
+
+=== FizzBuzz (many-line) ===
+  1   2   Fizz   4   Buzz   Fizz   7   8   Fizz   Buzz   11   Fizz   13   14  
+       FizzBuzz
+
+=== 5×5 times table (many-line) ===
+5×5 times table:
+1  2  3  4  5
+2  4  6  8 10
+3  6  9 12 15
+4  8 12 16 20
+5 10 15 20 25
+Done.

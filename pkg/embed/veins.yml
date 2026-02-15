@@ -3,6 +3,10 @@ veins:
     container: 100hellos/ada:latest
     extensions: [.adb, .ads]
 
+  - name: apl
+    container: 100hellos/apl:latest
+    extensions: [.apl]
+
   - name: arnoldc
     container: 100hellos/arnoldc:latest
     extensions: [.arnoldc]
@@ -10,6 +14,10 @@ veins:
   - name: ash
     container: 100hellos/ash:latest
     extensions: [.ash]
+
+  - name: algol
+    container: 100hellos/algol:latest
+    extensions: [.alg]
 
   - name: ats
     container: 100hellos/ats:latest
