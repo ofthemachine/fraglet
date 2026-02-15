@@ -1,1 +1,4 @@
 Hello, World!
+
+=== Test: Stdin (integer read) ===
+84
