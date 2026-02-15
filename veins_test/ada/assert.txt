@@ -1,4 +1,7 @@
 Hello from fragment!
 
+=== Test: Stdin ===
+HELLO
+
 === Test: Argument passing ===
 Args: foo bar baz
