@@ -9,19 +9,19 @@ import (
 )
 
 // dockerRunBuilder constructs "docker run ..." argv in a consistent order:
-// base (run, --rm, -i, platform, hardening) → opts (volumes, env, workdir, entrypoint) → image → args.
-// Add options via methods, then call Build() to get the full []string for exec.
+// base (run, --rm, [-i when stdin], platform, hardening) → opts → image → args.
+// Use attachStdin true only when spec has stdin; otherwise the container exits when the program ends instead of waiting for stdin.
 type dockerRunBuilder struct {
 	args []string
 }
 
-func newDockerRunBuilder(platform string) *dockerRunBuilder {
-	return &dockerRunBuilder{
-		args: []string{
-			"docker", "run", "--rm", "-i", "--platform", platform,
-			"--cap-drop=all", "--security-opt=no-new-privileges",
-		},
+func newDockerRunBuilder(platform string, attachStdin bool) *dockerRunBuilder {
+	args := []string{"docker", "run", "--rm"}
+	if attachStdin {
+		args = append(args, "-i")
 	}
+	args = append(args, "--platform", platform, "--cap-drop=all", "--security-opt=no-new-privileges")
+	return &dockerRunBuilder{args: args}
 }
 
 // readOnly: true = :ro mount (default for secure-by-default); false = read-write.
@@ -124,7 +124,8 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 	var tempFile string
 	var cleanup func()
 
-	base := newDockerRunBuilder(platform)
+	attachStdin := spec.StdinReader != nil || spec.Stdin != ""
+	base := newDockerRunBuilder(platform, attachStdin)
 	withCommon := func(b *dockerRunBuilder) *dockerRunBuilder {
 		return b.Env(spec.Env).WorkDir(spec.WorkDir).Volumes(spec.Volumes)
 	}

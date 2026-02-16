@@ -8,6 +8,35 @@ import (
 	"strings"
 )
 
+// WarnExtensionConflicts logs to stderr any file extension that is claimed by more than one vein.
+// Call after loading a registry so config issues (e.g. .bf for both befunge and brainfuck) are visible at load time.
+func WarnExtensionConflicts(registry *VeinRegistry) {
+	extToVeins := make(map[string]map[string]bool) // ext -> set of vein names
+	for _, veinName := range registry.List() {
+		v, _ := registry.Get(veinName)
+		for _, ext := range v.Extensions {
+			norm := normalizeExtension(ext)
+			if norm != "" {
+				if extToVeins[norm] == nil {
+					extToVeins[norm] = make(map[string]bool)
+				}
+				extToVeins[norm][veinName] = true
+			}
+		}
+	}
+	for ext, set := range extToVeins {
+		if len(set) > 1 {
+			veins := make([]string, 0, len(set))
+			for v := range set {
+				veins = append(veins, v)
+			}
+			sort.Strings(veins)
+			fmt.Fprintf(os.Stderr, "fraglet: warning: extension %s is used by multiple veins: %s (first alphabetically wins for inference; use --vein to override)\n",
+				ext, strings.Join(veins, ", "))
+		}
+	}
+}
+
 // ExtensionMap maps file extensions to vein names
 type ExtensionMap struct {
 	extToVein     map[string]string   // e.g., ".py" -> "python"

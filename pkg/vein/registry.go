@@ -92,8 +92,10 @@ func LoadFromDir(dir string) (*VeinRegistry, error) {
 }
 
 // LoadAuto loads veins, checking FRAGLET_VEINS_PATH first, then falling back to embedded
-// The path can be either a file or a directory
+// The path can be either a file or a directory. Warns to stderr if any extension is claimed by multiple veins.
 func LoadAuto(loadEmbedded func() (*VeinRegistry, error)) (*VeinRegistry, error) {
+	var registry *VeinRegistry
+	var err error
 	veinsPath := os.Getenv(VeinsPathEnvVar)
 	if veinsPath != "" {
 		// Check if path is a file or directory
@@ -102,12 +104,16 @@ func LoadAuto(loadEmbedded func() (*VeinRegistry, error)) (*VeinRegistry, error)
 			return nil, fmt.Errorf("failed to stat veins path %s: %w", veinsPath, err)
 		}
 		if info.IsDir() {
-			// Use filesystem veins from directory (development mode)
-			return LoadFromDir(veinsPath)
+			registry, err = LoadFromDir(veinsPath)
+		} else {
+			registry, err = LoadFromFile(veinsPath)
 		}
-		// Use filesystem veins from file (development mode)
-		return LoadFromFile(veinsPath)
+	} else {
+		registry, err = loadEmbedded()
 	}
-	// Use embedded veins (production mode)
-	return loadEmbedded()
+	if err != nil {
+		return nil, err
+	}
+	WarnExtensionConflicts(registry)
+	return registry, nil
 }

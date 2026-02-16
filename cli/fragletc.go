@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -91,12 +92,19 @@ func main() {
 	}
 	defer cleanup()
 
+	// Only attach stdin when it's a pipe or file; if it's a TTY, leave nil so the runner
+	// doesn't use -i and the container exits when the program ends instead of waiting for input.
+	var stdinReader io.Reader
+	if fi, err := os.Stdin.Stat(); err == nil && (fi.Mode()&os.ModeCharDevice) == 0 {
+		stdinReader = os.Stdin
+	}
+
 	r := runner.NewRunner(containerImage, "")
 	spec := runner.RunSpec{
 		Container:   containerImage,
 		Env:         envVars,
 		Args:        scriptArgs,
-		StdinReader: os.Stdin,
+		StdinReader: stdinReader,
 		Stdout:      os.Stdout,
 		Stderr:      os.Stderr,
 		Volumes: []runner.VolumeMount{
