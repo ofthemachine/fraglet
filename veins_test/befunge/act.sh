@@ -1,8 +1,15 @@
 #!/bin/sh
 export FRAGLET_VEINS_FORCE_TAG=local
 set -e
-# No shebang in .bf (would be executed as Befunge code); run via fragletc
 fragletc --vein=befunge test.bf
+
+echo ""
+echo "=== Factorial 5! ==="
+fragletc --vein=befunge factorial.bf
+
+echo ""
+echo "=== Squares 1..5 ==="
+fragletc --vein=befunge squares.bf
 
 echo ""
 echo "=== Test: Stdin ==="
