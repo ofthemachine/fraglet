@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -50,7 +51,7 @@ func init() {
 			"Supported languages: %s. "+
 			"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language—those guides already include everything you need, so do not hunt through repos or veins. "+
 			"Each language has specific requirements about code format (e.g., complete programs vs. code fragments, required structure, etc.) "+
-			"that you must follow. Use this for quick code invocations to test hypotheses, calculate values, analyze data, or prototype solutions.",
+			"that you must follow. Use this for quick code invocations to test hypotheses, calculate values, analyze data, or prototype solutions. Runs are limited to 60s by default; pass timeout_seconds to override.",
 			strings.Join(veins, ", ")),
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint: true,
@@ -58,9 +59,12 @@ func init() {
 	}
 }
 
+const DefaultRunTimeout = 60 * time.Second
+
 type RunInput struct {
-	Lang string `json:"lang" jsonschema:"the language to run the code in"`
-	Code string `json:"code" jsonschema:"the code to run"`
+	Lang          string `json:"lang" jsonschema:"the language to run the code in"`
+	Code          string `json:"code" jsonschema:"the code to run"`
+	TimeoutSeconds int    `json:"timeout_seconds,omitempty" jsonschema:"max execution time in seconds; default 60, 0 means use default"`
 }
 
 type RunOutput struct {
@@ -94,6 +98,14 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 	}
 	defer cleanup()
 
+	// Apply timeout: default 60s, overridable via timeout_seconds (0 = use default)
+	timeout := DefaultRunTimeout
+	if input.TimeoutSeconds > 0 {
+		timeout = time.Duration(input.TimeoutSeconds) * time.Second
+	}
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
 	// Create runner (ContainerImage applies FRAGLET_VEINS_FORCE_TAG if set)
 	img := v.ContainerImage()
 	r := runner.NewRunner(img, "")
@@ -111,9 +123,14 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 		},
 	}
 
-	result, err := r.Run(ctx, spec)
+	result, err := r.Run(runCtx, spec)
 	if err != nil {
-		return nil, RunOutput{}, fmt.Errorf("execution failed: %w", err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			timeoutMsg := fmt.Sprintf("execution timed out after %s", timeout)
+			result = runner.RunResult{Stderr: timeoutMsg, ExitCode: 124}
+		} else {
+			return nil, RunOutput{}, fmt.Errorf("execution failed: %w", err)
+		}
 	}
 
 	// Format output for better rendering
