@@ -1,1 +1,7 @@
 Hello, World!
+
+=== Test: Stdin ===
+hello
+
+=== Test: Argument passing ===
+Args: foo bar baz
