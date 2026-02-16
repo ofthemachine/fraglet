@@ -1,6 +1,9 @@
-Compiling source
-	hello-world.bal
-
-Generating executables
-	hello-world.jar
 Hello, World!
+
+=== Test: Stdin ===
+hello
+
+=== Test: Argument passing ===
+foo
+bar
+baz
