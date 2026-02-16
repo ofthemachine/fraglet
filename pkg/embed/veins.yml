@@ -35,6 +35,10 @@ veins:
     container: 100hellos/bash:latest
     extensions: [.bash, .sh]
 
+  - name: befunge
+    container: 100hellos/befunge:latest
+    extensions: [.bf, .b93, .befunge]
+
   - name: bqn
     container: 100hellos/bqn:latest
     extensions: [.bqn]
