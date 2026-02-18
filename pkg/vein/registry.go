@@ -92,7 +92,8 @@ func LoadFromDir(dir string) (*VeinRegistry, error) {
 }
 
 // LoadAuto loads veins, checking FRAGLET_VEINS_PATH first, then falling back to embedded
-// The path can be either a file or a directory. Warns to stderr if any extension is claimed by multiple veins.
+// The path can be either a file or a directory.
+// Extension conflicts are warned only when encountered (via ExtensionMap.VeinForExtension).
 func LoadAuto(loadEmbedded func() (*VeinRegistry, error)) (*VeinRegistry, error) {
 	var registry *VeinRegistry
 	var err error
@@ -114,6 +115,5 @@ func LoadAuto(loadEmbedded func() (*VeinRegistry, error)) (*VeinRegistry, error)
 	if err != nil {
 		return nil, err
 	}
-	WarnExtensionConflicts(registry)
 	return registry, nil
 }
