@@ -1,9 +1,6 @@
-name: 🚀 Release fraglet-entrypoint
+name: 🚀 Release fragletc
 
 on:
-  push:
-    paths:
-      - 'entrypoint/releases/**'
   workflow_dispatch:
 
 permissions:
@@ -24,23 +21,21 @@ jobs:
         id: version
         run: |
           # Latest release = highest version by semver (sort -V), not lexicographic
-          LATEST_VERSION=$(find entrypoint/releases/ -name "*.md" -type f -exec basename {} .md \; | sort -V | tail -n1)
+          LATEST_VERSION=$(find cli/releases/ -name "*.md" -type f 2>/dev/null -exec basename {} .md \; | sort -V | tail -n1)
           if [ -z "$LATEST_VERSION" ]; then
-            echo "No release file found"
+            echo "No release file found in cli/releases/. Add e.g. cli/releases/v0.1.0.md"
             exit 1
           fi
-          RELEASE_FILE="entrypoint/releases/${LATEST_VERSION}.md"
+          RELEASE_FILE="cli/releases/${LATEST_VERSION}.md"
 
           echo "version=${LATEST_VERSION}" >> $GITHUB_OUTPUT
           echo "release_file=${RELEASE_FILE}" >> $GITHUB_OUTPUT
-          echo "Building version: ${LATEST_VERSION}"
+          echo "Building fragletc ${LATEST_VERSION}"
 
   build:
-    name: 🛠 Build fraglet-entrypoint
+    name: 🛠 Build fragletc
     needs: get-version
-    uses: ./.github/workflows/build-entrypoint-reusable.yml
-    with:
-      version: ${{ needs.get-version.outputs.version }}
+    uses: ./.github/workflows/build-fragletc-reusable.yml
 
   release:
     name: 🚀 Create GitHub Release
@@ -55,23 +50,16 @@ jobs:
       - name: Download binaries from build
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: fraglet-entrypoint-binaries
+          name: fragletc-binaries
           path: .
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Move binaries to root
-        run: |
-          mv entrypoint/fraglet-entrypoint-* . || true
-          mv entrypoint/checksums.txt . || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe
         with:
-          tag_name: ${{ needs.get-version.outputs.version }}
-          name: fraglet-entrypoint ${{ needs.get-version.outputs.version }}
+          tag_name: fragletc-${{ needs.get-version.outputs.version }}
+          name: fragletc ${{ needs.get-version.outputs.version }}
           body_path: ${{ needs.get-version.outputs.release_file }}
           files: |
-            fraglet-entrypoint-*
+            fragletc-*
             checksums.txt
           make_latest: false
-

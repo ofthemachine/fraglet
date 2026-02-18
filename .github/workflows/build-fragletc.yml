@@ -1,0 +1,21 @@
+name: 🚀 Build fragletc
+
+on:
+  push:
+    paths:
+      - 'cli/**'
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
+  pull_request:
+    paths:
+      - 'cli/**'
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: 🛠 Build fragletc
+    uses: ./.github/workflows/build-fragletc-reusable.yml
