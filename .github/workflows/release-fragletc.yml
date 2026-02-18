@@ -1,4 +1,4 @@
-name: 🚀 Release fragletc
+ name: 🚀 Release fragletc
 
 on:
   workflow_dispatch:
