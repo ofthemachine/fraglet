@@ -1,0 +1,3 @@
+#!/usr/bin/env -S fragletc --vein=dash
+# One from the vault: dash fortunes
+echo "Dash: because 100KB is a feature."

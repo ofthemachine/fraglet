@@ -1,1 +1,11 @@
-Hello from fragment!
+Hello from dash!
+Small. Fast. No bloat.
+
+=== Test: Stdin ===
+HELLO
+
+=== Test: Argument passing ===
+Args: foo bar baz
+
+=== Test: Dash fortune ===
+Dash: because 100KB is a feature.
