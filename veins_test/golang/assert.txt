@@ -1,1 +1,11 @@
-Hello from fragment!
+Hello from Go!
+Compiled. Run. Done.
+
+=== Test: Stdin ===
+HELLO
+
+=== Test: Argument passing ===
+Args: foo bar baz
+
+=== Test: Go fortune ===
+Go: less is more. Then add generics.

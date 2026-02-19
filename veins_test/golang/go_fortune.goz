@@ -4,6 +4,5 @@ import (
 )
 
 func main() {
-	fmt.Println("Hello from Go!")
-	fmt.Println("Compiled. Run. Done.")
+	fmt.Println("Go: less is more. Then add generics.")
 }
