@@ -1,3 +1,4 @@
 #!/usr/bin/env -S fragletc --vein=groovy
-// Simple output
-println "Hello, World!"
+// Groovy: Java with less ceremony and more swagger.
+println "Hello from Groovy!"
+println "Optional semicolons. Optional types. Full sass."
