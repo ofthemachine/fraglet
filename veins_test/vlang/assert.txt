@@ -1,1 +1,11 @@
-Hello from fragment!
+Hello from V!
+Zero dependencies. One binary. No excuses.
+
+=== Test: Stdin ===
+HELLO
+
+=== Test: Argument passing ===
+Args: foo bar baz
+
+=== Test: V fortune ===
+V: 400KB compiler. 2 second boot. Your move, Rust.
