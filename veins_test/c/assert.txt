@@ -1,2 +1,14 @@
-=== Test: c ===
+Hello from C!
+Portable. Predictable. No runtime surprise.
+
+=== Test: Stdin ===
+HELLO
+
+=== Test: Argument passing ===
+Args: foo bar baz
+
+=== Test: Array sum ===
 Array sum: 15
+
+=== Test: C fortune ===
+C: 50 years old and still the one they compile to.
