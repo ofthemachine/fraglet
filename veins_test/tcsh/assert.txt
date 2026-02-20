@@ -1,1 +1,11 @@
-Hello from fragment!
+Hello from tcsh!
+Aliases. History. More than your grandpa's shell.
+
+=== Test: Stdin ===
+HELLO
+
+=== Test: Argument passing ===
+Args: foo bar baz
+
+=== Test: tcsh fortune ===
+tcsh: the C shell that outlived the punch card.
