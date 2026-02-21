@@ -1,0 +1,3 @@
+#!/usr/bin/env -S fragletc --vein=mksh
+# One from the vault: mksh fortunes
+print "mksh: the shell that proves you can be small, fast, and POSIX at the same time."

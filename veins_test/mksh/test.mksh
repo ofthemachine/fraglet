@@ -1,2 +1,4 @@
 #!/usr/bin/env -S fragletc --vein=mksh
-print "Hello from fragment!"
+# mksh: MirBSD Korn shell. Portable, fast, and actually used in the wild (hello Android).
+print "Hello from mksh!"
+print "The Korn shell that escaped the desktop."
