@@ -1,2 +1,4 @@
 #!/usr/bin/env -S fragletc --vein=nim
-echo "Hello from fragment!"
+# Nim: writes like Python, runs like C. No runtime, no problem.
+echo "Hello from Nim!"
+echo "Efficient, expressive, and actually compiles."
