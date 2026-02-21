@@ -1,1 +1,12 @@
-Hello, World!
+Hello from Racket!
+The programmable programming language. #lang everything.
+
+=== Test: Stdin ===
+HELLO
+
+=== Test: Argument passing ===
+Args: foo bar baz
+Args: queen foo 1 2
+
+=== Test: Racket fortune ===
+Racket: where #lang is not a suggestion, it's a way of life.
