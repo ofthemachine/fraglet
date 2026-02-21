@@ -1,4 +1,15 @@
-0: f
-1: bar
-2: fragletc is wonderful-see?
-Words ending with 'ing': 18119
+Hello from Java!
+NullPointerException: it's not a bug, it's a feature.
+
+=== Test: Stdin ===
+HELLO
+
+=== Test: Argument passing ===
+Args: foo bar baz
+Args: queen foo 1 2
+
+=== Test: Java fortune ===
+Java: the language that made 'enterprise' a four-syllable word.
+
+=== Test: Wordalytica mode (shebang) ===
+Count: 18119
