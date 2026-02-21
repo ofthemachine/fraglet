@@ -1,3 +1,12 @@
-[1 of 2] Compiling Main             ( hello-world.hs, hello-world.o )
-[2 of 2] Linking hello-world
-Hello from fragment!
+Hello from Haskell!
+Where the types are strong and the runtime is lazy.
+
+=== Test: Stdin ===
+HELLO
+
+=== Test: Argument passing ===
+Args: foo bar baz
+Args: queen foo 1 2
+
+=== Test: Haskell fortune ===
+Haskell: the language where the runtime is optional but the category theory is mandatory.
