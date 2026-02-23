@@ -59,6 +59,14 @@ veins:
     container: 100hellos/clojure:latest
     extensions: [.clj, .cljs, .cljc]
 
+  - name: cobol
+    container: 100hellos/cobol:latest
+    extensions: [.cob]
+
+  - name: coffeescript
+    container: 100hellos/coffeescript:latest
+    extensions: [.coffee]
+
   - name: cpp
     container: 100hellos/cpp:latest
     extensions: [.cpp, .cxx, .cc, .c++]
@@ -91,6 +99,10 @@ veins:
     container: 100hellos/elixir:latest
     extensions: [.ex, .exs]
 
+  - name: elm
+    container: 100hellos/elm:latest
+    extensions: [.elm]
+
   - name: emojicode
     container: 100hellos/emojicode:latest
     extensions: [.emojic]
@@ -102,6 +114,10 @@ veins:
   - name: factor
     container: 100hellos/factor:latest
     extensions: [.factor]
+
+  - name: fantom
+    container: 100hellos/fantom:latest
+    extensions: [.fan]
 
   - name: fennel
     container: 100hellos/fennel:latest
@@ -179,6 +195,10 @@ veins:
     container: 100hellos/lua:latest
     extensions: [.lua]
 
+  - name: malbolge
+    container: 100hellos/malbolge:latest
+    extensions: [.mb]
+
   - name: mercury
     container: 100hellos/mercury:latest
     extensions: [.m]
@@ -198,6 +218,10 @@ veins:
   - name: nix
     container: 100hellos/nix:latest
     extensions: [.nix]
+
+  - name: oberon
+    container: 100hellos/oberon:latest
+    extensions: [.mod]
 
   - name: objective-c
     container: 100hellos/objective-c:latest
@@ -238,6 +262,10 @@ veins:
   - name: prolog
     container: 100hellos/prolog:latest
     extensions: [.pl, .prolog]
+
+  - name: purescript
+    container: 100hellos/purescript:latest
+    extensions: [.purs]
 
   - name: python
     container: 100hellos/python:latest
@@ -283,6 +311,14 @@ veins:
     container: 100hellos/sml:latest
     extensions: [.sml, .sig]
 
+  - name: smalltalk
+    container: 100hellos/smalltalk:latest
+    extensions: [.st]
+
+  - name: squirrel
+    container: 100hellos/squirrel:latest
+    extensions: [.nut]
+
   - name: snobol4
     container: 100hellos/snobol4:latest
     extensions: [.sno, .snobol]
@@ -307,6 +343,14 @@ veins:
     container: 100hellos/typescript:latest
     extensions: [.ts, .tsx]
 
+  - name: tswizzle
+    container: 100hellos/tswizzle:latest
+    extensions: [.tswizzle]
+
+  - name: unlambda
+    container: 100hellos/unlambda:latest
+    extensions: [.unl]
+
   - name: vala
     container: 100hellos/vala:latest
     extensions: [.vala]
@@ -314,6 +358,10 @@ veins:
   - name: verilog
     container: 100hellos/verilog:latest
     extensions: [.v, .vh]
+
+  - name: visual-basic
+    container: 100hellos/visual-basic:latest
+    extensions: [.vb]
 
   - name: vlang
     container: 100hellos/vlang:latest
@@ -327,9 +375,17 @@ veins:
     container: 100hellos/wren:latest
     extensions: [.wren]
 
+  - name: whitespace
+    container: 100hellos/whitespace:latest
+    extensions: [.ws]
+
   - name: zig
     container: 100hellos/zig:latest
     extensions: [.zig]
+
+  - name: zombie
+    container: 100hellos/zombie:latest
+    extensions: [.zombie]
 
   - name: zsh
     container: 100hellos/zsh:latest

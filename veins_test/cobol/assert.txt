@@ -1,0 +1,12 @@
+Hello from COBOL!
+Still running in 2025.
+
+=== Test: Stdin ===
+HELLO
+
+=== Test: Argument passing ===
+Args: foo bar baz
+Args: queen foo 1 2
+
+=== Test: COBOL fortune ===
+COBOL: 60 years of moving decimal points.
