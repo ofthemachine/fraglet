@@ -99,10 +99,6 @@ veins:
     container: 100hellos/elixir:latest
     extensions: [.ex, .exs]
 
-  - name: elm
-    container: 100hellos/elm:latest
-    extensions: [.elm]
-
   - name: emojicode
     container: 100hellos/emojicode:latest
     extensions: [.emojic]
