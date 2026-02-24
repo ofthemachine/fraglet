@@ -251,10 +251,6 @@ veins:
     container: 100hellos/prolog:latest
     extensions: [.pl, .prolog]
 
-  - name: purescript
-    container: 100hellos/purescript:latest
-    extensions: [.purs]
-
   - name: python
     container: 100hellos/python:latest
     extensions: [.py, .pyw]
