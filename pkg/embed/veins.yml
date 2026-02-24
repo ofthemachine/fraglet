@@ -323,10 +323,6 @@ veins:
     container: 100hellos/typescript:latest
     extensions: [.ts, .tsx]
 
-  - name: tswizzle
-    container: 100hellos/tswizzle:latest
-    extensions: [.tswizzle]
-
   - name: unlambda
     container: 100hellos/unlambda:latest
     extensions: [.unl]
