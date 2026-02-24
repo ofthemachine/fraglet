@@ -211,10 +211,6 @@ veins:
     container: 100hellos/nix:latest
     extensions: [.nix]
 
-  - name: oberon
-    container: 100hellos/oberon:latest
-    extensions: [.mod]
-
   - name: objective-c
     container: 100hellos/objective-c:latest
     extensions: [.m, .mm]
