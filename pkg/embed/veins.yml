@@ -191,10 +191,6 @@ veins:
     container: 100hellos/lua:latest
     extensions: [.lua]
 
-  - name: malbolge
-    container: 100hellos/malbolge:latest
-    extensions: [.mb]
-
   - name: mercury
     container: 100hellos/mercury:latest
     extensions: [.m]
