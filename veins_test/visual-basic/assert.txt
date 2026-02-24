@@ -1,0 +1,12 @@
+Hello from Visual Basic!
+Fraglet vein: visual-basic.
+
+=== Test: Stdin ===
+HELLO
+
+=== Test: Argument passing ===
+Args: foo bar baz
+Args: queen foo 1 2
+
+=== Test: Visual Basic fortune ===
+In VB we trust: If it compiles, it runs. If it runs, it was meant to be.
