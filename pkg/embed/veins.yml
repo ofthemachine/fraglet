@@ -299,10 +299,6 @@ veins:
     container: 100hellos/smalltalk:latest
     extensions: [.st]
 
-  - name: squirrel
-    container: 100hellos/squirrel:latest
-    extensions: [.nut]
-
   - name: snobol4
     container: 100hellos/snobol4:latest
     extensions: [.sno, .snobol]
