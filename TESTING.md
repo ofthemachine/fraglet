@@ -48,6 +48,6 @@ Or run a single verify script (fragletc must be on PATH, e.g. after `make instal
 cd /path/to/100hellos && ats/fraglet/verify.sh
 ```
 
-**Using locally built images:** Set `FRAGLET_VEINS_FORCE_TAG=local` so vein images use the `:local` tag instead of `:latest` (e.g. `100hellos/python:local`). Useful when testing with images built via `make <lang>` in 100hellos.
+**Using locally built images:** Set `FRAGLET_VEINS_FORCE_TAG=local` so vein images use the `:local` tag instead of `:latest` (e.g. `100hellos/python:local`). Useful when testing with images built via `make <lang>` in 100hellos. **MCP:** The fraglet-mcp server uses the same vein resolution; ensure the MCP server process is started with this env var set (e.g. in Cursor’s MCP config or the shell that launches it) so `language_help` and `run` use your local images.
 
 See [veins_test/README.md](veins_test/README.md) for veins_test structure and [entrypoint/releases/](entrypoint/releases/) for entrypoint changelog (e.g. v0.4.0 stdin passthrough).

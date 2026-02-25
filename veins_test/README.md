@@ -139,6 +139,15 @@ python/
   assert.txt
 ```
 
+## Contract: Stdin and Args
+
+Veins that support stdin and args should include tests for both. That way **any container that passes veins_test** (100hellos or a swap-in) satisfies the same contract: default run, stdin passthrough, and argument passing.
+
+- **Stdin**: Add a script (e.g. `stdin_upper.<ext>`) that reads stdin and produces deterministic output (e.g. uppercase). In `act.sh`: `echo "hello" | ./stdin_upper.<ext>`. In `assert.txt`: add the expected line (e.g. `HELLO`).
+- **Args**: Add `echo_args.<ext>` and a line in `act.sh` that runs it with known args; assert the output in `assert.txt`.
+
+Reference veins with full contract: **python**, **ruby**, **scala** (each has test script, stdin_upper, echo_args, and matching act.sh/assert.txt).
+
 ## Argument Passing Tests
 
 To test argument passing through the shebang → fragletc → container pipeline:

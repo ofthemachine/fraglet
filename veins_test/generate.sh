@@ -24,6 +24,22 @@ if [[ ! -d "$HELLOS_ROOT" ]]; then
     exit 1
 fi
 
+# Get 100hellos directory name for a vein (from veins.yml container)
+# e.g. vein "c" -> "the-c-programming-language", vein "python" -> "python"
+get_hellos_dir() {
+    local vein_name="$1"
+    awk -v name="$vein_name" '
+        /^  - name: / { in_vein = ($3 == name) }
+        in_vein && /container: 100hellos\// {
+            sub(/.*100hellos\//, "")
+            sub(/:.*/, "")
+            print
+            exit
+        }
+        /^  - name: / && !in_vein { in_vein = 0 }
+    ' "$VEINS_YML"
+}
+
 # Get extension for a vein name from veins.yml
 # Prefers script extensions (e.g., .exs over .ex, .py over .pyw)
 get_extension() {
@@ -141,9 +157,12 @@ find_hello_world() {
 generate_lang() {
     local lang="$1"
     local lang_dir="$SCRIPT_DIR/$lang"
-    local hellos_lang_dir="$HELLOS_ROOT/$lang"
+    local hellos_dir
+    hellos_dir=$(get_hellos_dir "$lang")
+    [[ -z "$hellos_dir" ]] && hellos_dir="$lang"
+    local hellos_lang_dir="$HELLOS_ROOT/$hellos_dir"
 
-    echo "Generating test for: $lang"
+    echo "Generating test for: $lang (100hellos/$hellos_dir)"
 
     # Get extension
     local ext=$(get_extension "$lang")
@@ -200,30 +219,54 @@ generate_lang() {
 
     echo "  Created: $script_file (from $code_source)"
 
-    # Create act.sh (single smoke test; add echo_args/stdin scripts manually if desired)
+    # Create act.sh (single smoke test; add echo_args/stdin if verify scripts exist)
     local act_file="$lang_dir/act.sh"
-    {
-        echo "#!/bin/sh"
-        echo "set -e"
-        echo "chmod +x ./*${ext} 2>/dev/null || true"
-        echo "./$filename"
-    } > "$act_file"
+    local assert_file="$lang_dir/assert.txt"
+    { echo "#!/bin/sh"; echo "set -e"; echo "chmod +x ./*${ext} 2>/dev/null || true"; echo "./$filename"; } > "$act_file"
     chmod +x "$act_file"
 
-    # Generate assert.txt by running the main script
-    # Note: This requires fragletc to be available
-    local assert_file="$lang_dir/assert.txt"
+    # If 100hellos has verify_stdin.sh, create stdin_upper.<ext> and add to act.sh
+    local stdin_script="$hellos_lang_dir/fraglet/verify_stdin.sh"
+    local args_script="$hellos_lang_dir/fraglet/verify_args.sh"
+    if [[ -f "$stdin_script" ]]; then
+        stdin_code=$(extract_from_verify "$stdin_script" 2>/dev/null) || true
+        if [[ -n "$stdin_code" ]]; then
+            stdin_file="$lang_dir/stdin_upper${ext}"
+            { echo "#!/usr/bin/env -S fragletc --vein=$lang"; echo "$stdin_code"; } > "$stdin_file"
+            chmod +x "$stdin_file"
+            echo "  Created: $stdin_file (from verify_stdin.sh)"
+            echo '' >> "$act_file"
+            echo 'echo ""' >> "$act_file"
+            echo 'echo "=== Test: Stdin ==="' >> "$act_file"
+            echo "echo \"hello\" | ./stdin_upper${ext}" >> "$act_file"
+        fi
+    fi
+    if [[ -f "$args_script" ]]; then
+        args_code=$(extract_from_verify "$args_script" 2>/dev/null) || true
+        if [[ -n "$args_code" ]]; then
+            args_file="$lang_dir/echo_args${ext}"
+            { echo "#!/usr/bin/env -S fragletc --vein=$lang"; echo "$args_code"; } > "$args_file"
+            chmod +x "$args_file"
+            echo "  Created: $args_file (from verify_args.sh)"
+            echo '' >> "$act_file"
+            echo 'echo ""' >> "$act_file"
+            echo 'echo "=== Test: Argument passing ==="' >> "$act_file"
+            echo "./echo_args${ext} foo bar baz" >> "$act_file"
+        fi
+    fi
+
+    # Generate assert.txt by running act.sh (or just main script if fragletc available)
     if command -v fragletc >/dev/null 2>&1; then
-        echo "  Running script to generate assert.txt..."
-        if output=$("$script_file" 2>&1); then
+        echo "  Running act.sh to generate assert.txt..."
+        if output=$(cd "$lang_dir" && ./act.sh 2>&1); then
             echo "$output" > "$assert_file"
             echo "  Created: $assert_file"
         else
-            echo "  Warning: Script execution failed, creating empty assert.txt" >&2
-            echo "" > "$assert_file"
+            echo "  Warning: act.sh failed, creating assert from test script only" >&2
+            (cd "$lang_dir" && ./"$filename" 2>&1) > "$assert_file" || echo "" > "$assert_file"
         fi
     else
-        echo "  Warning: fragletc not found, creating empty assert.txt" >&2
+        echo "  Warning: fragletc not found, creating placeholder assert.txt" >&2
         echo "  Run the test manually and update assert.txt" >&2
         echo "" > "$assert_file"
     fi
@@ -245,7 +288,7 @@ elif [[ "$1" == "--sync" ]]; then
     for lang_dir in "$SCRIPT_DIR"/*/; do
         if [[ -d "$lang_dir" ]]; then
             lang=$(basename "$lang_dir")
-            if [[ "$lang" != "veins_test.go" && "$lang" != "README.md" && "$lang" != "generate.sh" ]]; then
+            if [[ "$lang" != "veins_test.go" && "$lang" != "README.md" && "$lang" != "generate.sh" && "$lang" != "fragletc" ]]; then
                 generate_lang "$lang" || true
             fi
         fi

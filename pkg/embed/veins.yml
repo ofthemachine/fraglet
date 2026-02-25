@@ -1,3 +1,8 @@
+# Vein names may differ from 100hellos directory names.
+# The container field maps vein name -> 100hellos image.
+# e.g., vein "c" uses container "100hellos/the-c-programming-language:latest"
+# veins_test/ directories use the vein name, not the 100hellos dir name.
+
 veins:
   - name: ada
     container: 100hellos/ada:latest
