@@ -5,28 +5,29 @@ REPO="ofthemachine/fraglet"
 BINARY="fragletc"
 INSTALL_DIR="${FRAGLETC_INSTALL_DIR:-$HOME/.local/bin}"
 
-# --- Colors (disabled when not a terminal) ---
+# --- Colors (actual escape chars, safe in %s and format strings) ---
 if [ -t 1 ]; then
-  BOLD='\033[1m'
-  DIM='\033[2m'
-  GREEN='\033[0;32m'
-  CYAN='\033[0;36m'
-  YELLOW='\033[0;33m'
-  RED='\033[0;31m'
-  RESET='\033[0m'
+  ESC=$(printf '\033')
+  BOLD="${ESC}[1m"
+  DIM="${ESC}[2m"
+  GREEN="${ESC}[0;32m"
+  CYAN="${ESC}[0;36m"
+  YELLOW="${ESC}[0;33m"
+  RED="${ESC}[0;31m"
+  RESET="${ESC}[0m"
 else
   BOLD='' DIM='' GREEN='' CYAN='' YELLOW='' RED='' RESET=''
 fi
 
-info()  { printf "${CYAN}=>${RESET} %s\n" "$1"; }
-ok()    { printf "${GREEN}=>${RESET} %s\n" "$1"; }
-warn()  { printf "${YELLOW}warn:${RESET} %s\n" "$1"; }
-fail()  { printf "${RED}error:${RESET} %s\n" "$1" >&2; exit 1; }
+info()  { printf "%s=>%s %s\n" "$CYAN" "$RESET" "$1"; }
+ok()    { printf "%s=>%s %s\n" "$GREEN" "$RESET" "$1"; }
+warn()  { printf "%swarn:%s %s\n" "$YELLOW" "$RESET" "$1"; }
+fail()  { printf "%serror:%s %s\n" "$RED" "$RESET" "$1" >&2; exit 1; }
 
 # --- Banner ---
 printf "\n"
-printf "${BOLD}  fragletc${RESET} ${DIM}— run code fragments in containers${RESET}\n"
-printf "${DIM}  https://github.com/${REPO}${RESET}\n"
+printf "  %sfragletc%s %s— run code fragments in containers%s\n" "$BOLD" "$RESET" "$DIM" "$RESET"
+printf "  %shttps://github.com/%s%s\n" "$DIM" "$REPO" "$RESET"
 printf "\n"
 
 # --- Platform detection ---
@@ -53,21 +54,23 @@ PLATFORM="${OS}-${ARCH}"
 
 info "Detected platform: ${BOLD}${PLATFORM}${RESET}"
 
-# --- Find latest release ---
+# --- Find latest fragletc release (filter for fragletc-* tags) ---
 info "Finding latest release..."
 
-RELEASES_URL="https://api.github.com/repos/${REPO}/releases/latest"
+RELEASES_URL="https://api.github.com/repos/${REPO}/releases"
 
 if command -v curl >/dev/null 2>&1; then
-  RELEASE_JSON=$(curl -fsSL "$RELEASES_URL") || fail "Could not fetch latest release. Have you published a GitHub release yet?"
+  FETCH="curl -fsSL"
 elif command -v wget >/dev/null 2>&1; then
-  RELEASE_JSON=$(wget -qO- "$RELEASES_URL") || fail "Could not fetch latest release. Have you published a GitHub release yet?"
+  FETCH="wget -qO-"
 else
   fail "Neither curl nor wget found. Install one and try again."
 fi
 
-TAG=$(printf '%s' "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-[ -z "$TAG" ] && fail "Could not determine latest release tag"
+RELEASES_JSON=$($FETCH "$RELEASES_URL") || fail "Could not fetch releases from GitHub."
+
+TAG=$(printf '%s' "$RELEASES_JSON" | grep '"tag_name"' | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' | grep '^fragletc-' | head -1)
+[ -z "$TAG" ] && fail "No fragletc release found. Check https://github.com/${REPO}/releases"
 
 VERSION=$(echo "$TAG" | sed 's/^fragletc-//')
 info "Latest version: ${BOLD}${VERSION}${RESET}"
@@ -88,14 +91,14 @@ info "Downloading ${BOLD}${ASSET_NAME}${RESET}..."
 
 if command -v curl >/dev/null 2>&1; then
   curl -fsSL -o "${TMPDIR}/${ASSET_NAME}" "$ASSET_URL" || fail "Download failed: ${ASSET_URL}"
-  curl -fsSL -o "${TMPDIR}/checksums.txt" "$CHECKSUMS_URL" || warn "Could not download checksums — skipping verification"
+  curl -fsSL -o "${TMPDIR}/checksums.txt" "$CHECKSUMS_URL" 2>/dev/null || true
 else
   wget -qO "${TMPDIR}/${ASSET_NAME}" "$ASSET_URL" || fail "Download failed: ${ASSET_URL}"
-  wget -qO "${TMPDIR}/checksums.txt" "$CHECKSUMS_URL" || warn "Could not download checksums — skipping verification"
+  wget -qO "${TMPDIR}/checksums.txt" "$CHECKSUMS_URL" 2>/dev/null || true
 fi
 
 # --- Verify checksum ---
-if [ -f "${TMPDIR}/checksums.txt" ]; then
+if [ -s "${TMPDIR}/checksums.txt" ]; then
   EXPECTED=$(grep "${ASSET_NAME}" "${TMPDIR}/checksums.txt" | awk '{print $1}')
   if [ -n "$EXPECTED" ]; then
     if command -v sha256sum >/dev/null 2>&1; then
@@ -107,10 +110,12 @@ if [ -f "${TMPDIR}/checksums.txt" ]; then
       ACTUAL="$EXPECTED"
     fi
     if [ "$EXPECTED" != "$ACTUAL" ]; then
-      fail "Checksum mismatch!\n  Expected: ${EXPECTED}\n  Actual:   ${ACTUAL}"
+      fail "Checksum mismatch! Expected: ${EXPECTED} Actual: ${ACTUAL}"
     fi
     ok "Checksum verified"
   fi
+else
+  warn "Could not download checksums — skipping verification"
 fi
 
 # --- Install ---
@@ -127,7 +132,7 @@ case ":$PATH:" in
     printf "\n"
     printf "  Add it to your shell profile:\n"
     printf "\n"
-    printf "    ${BOLD}export PATH=\"${INSTALL_DIR}:\$PATH\"${RESET}\n"
+    printf "    %sexport PATH=\"%s:\$PATH\"%s\n" "$BOLD" "$INSTALL_DIR" "$RESET"
     printf "\n"
     ;;
 esac
@@ -140,20 +145,20 @@ else
   warn "Docker not found"
   printf "\n"
   printf "  fragletc requires Docker to run code in containers.\n"
-  printf "  Install Docker: ${BOLD}https://docs.docker.com/get-docker/${RESET}\n"
+  printf "  Install Docker: %shttps://docs.docker.com/get-docker/%s\n" "$BOLD" "$RESET"
   printf "\n"
 fi
 
 # --- Success ---
 printf "\n"
-printf "${GREEN}${BOLD}  Ready to go!${RESET}\n"
+printf "  %s%sReady to go!%s\n" "$GREEN" "$BOLD" "$RESET"
 printf "\n"
-printf "  ${DIM}Run code:${RESET}\n"
-printf "    ${BOLD}fragletc --vein=python -c 'print(\"hello\")'${RESET}\n"
+printf "  %sRun code:%s\n" "$DIM" "$RESET"
+printf "    %sfragletc --vein=python -c 'print(\"hello\")' %s\n" "$BOLD" "$RESET"
 printf "\n"
-printf "  ${DIM}Start MCP server:${RESET}\n"
-printf "    ${BOLD}fragletc mcp${RESET}\n"
+printf "  %sStart MCP server:%s\n" "$DIM" "$RESET"
+printf "    %sfragletc mcp%s\n" "$BOLD" "$RESET"
 printf "\n"
-printf "  ${DIM}Full setup guide:${RESET}\n"
-printf "    https://github.com/${REPO}/blob/main/INSTALL.md\n"
+printf "  %sFull setup guide:%s\n" "$DIM" "$RESET"
+printf "    https://github.com/%s/blob/main/INSTALL.md\n" "$REPO"
 printf "\n"
