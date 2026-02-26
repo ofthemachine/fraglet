@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/ofthemachine/fraglet/mcp/tools"
 	"github.com/ofthemachine/fraglet/pkg/embed"
 	"github.com/ofthemachine/fraglet/pkg/runner"
 	"github.com/ofthemachine/fraglet/pkg/vein"
@@ -35,6 +37,9 @@ func main() {
 			return
 		case "guide":
 			handleGuide()
+			return
+		case "mcp":
+			handleMCP()
 			return
 		}
 	}
@@ -412,6 +417,10 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 	os.Exit(result.ExitCode)
 }
 
+func handleMCP() {
+	tools.Server.Run(context.Background(), &mcp.StdioTransport{})
+}
+
 func usage() {
 	fmt.Fprintf(os.Stderr, `Usage: fragletc [flags] [script-file] [script-args...]
        fragletc refresh [options] [vein-name]
@@ -442,6 +451,8 @@ Stdin:
   Use pipes to send data: echo "hello" | fragletc --vein=python script.py
 
 Subcommands:
+  mcp           Start the MCP (Model Context Protocol) server over stdio
+                Use with Claude Desktop, Cursor, or any MCP-compatible client
   refresh       Refresh (pull) container images for veins
                 Use "fragletc refresh --help" for details
   guide         Show fraglet guide for a vein
@@ -484,5 +495,8 @@ Examples:
   # Show guides
   fragletc guide ada
   fragletc guide python
+
+  # Start MCP server (for AI tool integration)
+  fragletc mcp
 `)
 }

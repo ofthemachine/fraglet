@@ -19,7 +19,7 @@ func TestFragletcCLI(t *testing.T) {
 		BaseDirs:          []string{testDir},
 		EnvOverrideVar:    "CLI_TEST_SUITE_DIR",
 		BinaryName:        "fragletc",
-		BuildCommand:      []string{"sh", "-c", "cd " + filepath.Dir(testDir) + " && make build-cli && cp fragletc " + testDir + "/"},
+		BuildCommand:      []string{"sh", "-c", "cd " + filepath.Dir(testDir) + " && make build && cp fragletc " + testDir + "/"},
 		ProjectRootMarker: "go.mod",
 	}
 

@@ -4,12 +4,14 @@ on:
   push:
     paths:
       - 'cli/**'
+      - 'mcp/**'
       - 'pkg/**'
       - 'go.mod'
       - 'go.sum'
   pull_request:
     paths:
       - 'cli/**'
+      - 'mcp/**'
       - 'pkg/**'
       - 'go.mod'
       - 'go.sum'

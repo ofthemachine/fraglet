@@ -34,13 +34,13 @@ When adding fraglet support to a container, you need to test:
 Build from source:
 ```bash
 cd /path/to/fraglet
-make build-cli
+make build
 # Binary created at: ./fragletc
 ```
 
 Or install to GOBIN:
 ```bash
-make install-cli
+make install
 # Installed to: $(go env GOBIN)/fragletc
 ```
 
