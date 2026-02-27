@@ -1,5 +1,0 @@
-#!/home/hershel/go/bin/fragletc --lang=snobol4
-
-        TEXT = "Hello World"
-        TEXT "World" = "Universe"
-        OUTPUT = TEXT
