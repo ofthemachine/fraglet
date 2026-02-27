@@ -32,7 +32,8 @@ func init() {
 				"physics simulations, data analysis, and other problem domains best solved with code. " +
 				"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language—those guides already include everything you need, so do not hunt through repos or veins. " +
 				"Each language has specific requirements about code format (e.g., complete programs vs. code fragments, required structure, etc.) " +
-				"that you must follow.",
+				"that you must follow. " +
+				"A fraglet is an executable code file that runs in a containerized sandbox. When writing fraglets to disk, use the shebang #!/usr/bin/env -S fragletc --vein=<lang> where <lang> matches the lang parameter. Files with this shebang are directly executable via ./filename.",
 			Annotations: &mcp.ToolAnnotations{
 				ReadOnlyHint: true,
 			},
@@ -51,7 +52,8 @@ func init() {
 			"Supported languages: %s. "+
 			"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language—those guides already include everything you need, so do not hunt through repos or veins. "+
 			"Each language has specific requirements about code format (e.g., complete programs vs. code fragments, required structure, etc.) "+
-			"that you must follow. Use this for quick code invocations to test hypotheses, calculate values, analyze data, or prototype solutions. Runs are limited to 60s by default; pass timeout_seconds to override.",
+			"that you must follow. Use this for quick code invocations to test hypotheses, calculate values, analyze data, or prototype solutions. Runs are limited to 60s by default; pass timeout_seconds to override. "+
+			"A fraglet is an executable code file that runs in a containerized sandbox. When writing fraglets to disk, use the shebang #!/usr/bin/env -S fragletc --vein=<lang> where <lang> matches the lang parameter. Files with this shebang are directly executable via ./filename.",
 			strings.Join(veins, ", ")),
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint: true,
@@ -62,7 +64,7 @@ func init() {
 const DefaultRunTimeout = 60 * time.Second
 
 type RunInput struct {
-	Lang          string `json:"lang" jsonschema:"the language to run the code in"`
+	Lang          string `json:"lang" jsonschema:"the language (vein) to run the code in — corresponds to --vein in the fragletc CLI"`
 	Code          string `json:"code" jsonschema:"the code to run"`
 	TimeoutSeconds int    `json:"timeout_seconds,omitempty" jsonschema:"max execution time in seconds; default 60, 0 means use default"`
 }

@@ -13,14 +13,14 @@ import (
 
 var LanguageHelpTool = &mcp.Tool{
 	Name:        "language_help",
-	Description: "Get the authoring guide for a language environment. Use this to learn syntax, code patterns, available libraries, frameworks, and domain-specific tools for writing code fragments. Each language container may include rich ecosystems—libraries for complex systems interactions, data processing, APIs, and more. Essential for code-based reasoning—helps you discover and leverage the full capabilities of each environment for statistical analysis, mathematical computation, physics simulations, probability calculations, and other problem domains best explored with code.",
+	Description: "Get the authoring guide for a language environment. Use this to learn syntax, code patterns, available libraries, frameworks, and domain-specific tools for writing code fragments. Each language container may include rich ecosystems—libraries for complex systems interactions, data processing, APIs, and more. Essential for code-based reasoning—helps you discover and leverage the full capabilities of each environment for statistical analysis, mathematical computation, physics simulations, probability calculations, and other problem domains best explored with code. The returned guide applies to both inline code passed to the 'run' tool and standalone fraglet files. Fraglet files use the shebang #!/usr/bin/env -S fragletc --vein=<lang> and are directly executable.",
 	Annotations: &mcp.ToolAnnotations{
 		ReadOnlyHint: true,
 	},
 }
 
 type LanguageHelpInput struct {
-	Lang string `json:"lang" jsonschema:"the language to get the authoring guide for (e.g., 'python', 'r', 'lisp')"`
+	Lang string `json:"lang" jsonschema:"the language (vein) to get the authoring guide for (e.g., 'python', 'r', 'lisp')"`
 }
 
 type LanguageHelpOutput struct {
@@ -55,7 +55,7 @@ func LanguageHelp(ctx context.Context, req *mcp.CallToolRequest, input LanguageH
 	}
 
 	help := strings.TrimSpace(stdout.String())
-	reminder := "\n\n---\nFraglet handles code injection/execution for you. Treat this authoring guide as the single source of truth—no repo spelunking or vein inspection required. If execution fails, iterate from that feedback rather than hunting for config."
+	reminder := "\n\n---\nFraglet handles code injection/execution for you. Treat this authoring guide as the single source of truth—no repo spelunking or vein inspection required. If execution fails, iterate from that feedback rather than hunting for config. When writing fraglet files to disk, always use the shebang: #!/usr/bin/env -S fragletc --vein=<lang>"
 	helpWithReminder := help + reminder
 
 	// Return formatted TextContent for better rendering in chat

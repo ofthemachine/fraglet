@@ -10,7 +10,7 @@ func init() {
 	Server = mcp.NewServer(
 		&mcp.Implementation{
 			Name:    "fraglet",
-			Title:   "fraglet - Code Fragment Runner",
+			Title:   "fraglet - Fraglet Runner",
 			Version: "v0.0.1",
 		}, nil)
 
