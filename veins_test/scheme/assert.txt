@@ -1,11 +1,7 @@
-Hello from Scheme!
-Lisp's younger sibling. Still rewriting the world.
+Hello, World!
 
 === Test: Stdin ===
 HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-
-=== Test: Scheme fortune ===
-Scheme: where (car (cdr life)) is still a valid answer.

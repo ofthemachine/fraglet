@@ -1,0 +1,10 @@
+#!/usr/bin/env -S fragletc --vein=tinygo
+import (
+	"fmt"
+	"os"
+	"strings"
+)
+
+func main() {
+	fmt.Println("Args:", strings.Join(os.Args[1:], " "))
+}

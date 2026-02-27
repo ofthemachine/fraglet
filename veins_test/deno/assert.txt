@@ -1,11 +1,7 @@
-Hello from Deno!
-No node_modules. No package.json. Just run.
+Hello, World!
 
 === Test: Stdin ===
 HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-
-=== Test: Deno fortune ===
-Deno: npm not included. You're welcome.

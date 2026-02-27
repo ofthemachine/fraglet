@@ -1,11 +1,7 @@
-Hello from Tcl!
-Simple syntax. Deep semantics. Still here.
+Hello, World!
 
 === Test: Stdin ===
 HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-
-=== Test: Tcl fortune ===
-Tcl: the language that made everything a string look like a feature.

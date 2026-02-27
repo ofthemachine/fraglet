@@ -3,7 +3,9 @@ package vein
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
+	"sync"
 )
 
 // Vein defines an injection point for fraglet code
@@ -47,24 +49,68 @@ func (r *VeinRegistry) Get(name string) (*Vein, bool) {
 	return vein, ok
 }
 
-// ContainerImage returns the container image for this vein, applying
-// FRAGLET_VEINS_FORCE_TAG if set (e.g. "local" to use locally built images).
+// ContainerImage returns the container image for this vein, resolving the tag
+// via FRAGLET_VEINS_FORCE_TAG or FRAGLET_VEIN_TAG_DISCOVERY_ORDER.
 func (v *Vein) ContainerImage() string {
-	return ApplyForceTag(v.Container)
+	return ResolveImageTag(v.Container)
 }
 
-// ApplyForceTag returns container with tag overridden when FRAGLET_VEINS_FORCE_TAG is set.
-// Example: 100hellos/python:latest + FRAGLET_VEINS_FORCE_TAG=local → 100hellos/python:local
-func ApplyForceTag(container string) string {
-	tag := os.Getenv("FRAGLET_VEINS_FORCE_TAG")
-	if tag == "" {
-		return container
-	}
+var imageExistsCache sync.Map
+
+func replaceTag(container, tag string) string {
 	lastColon := strings.LastIndex(container, ":")
 	if lastColon == -1 {
 		return container + ":" + tag
 	}
 	return container[:lastColon] + ":" + tag
+}
+
+func imageExistsLocally(image string) bool {
+	if cached, ok := imageExistsCache.Load(image); ok {
+		return cached.(bool)
+	}
+	cmd := exec.Command("docker", "image", "inspect", "--format", ".", image)
+	err := cmd.Run()
+	exists := err == nil
+	imageExistsCache.Store(image, exists)
+	return exists
+}
+
+// ResolveImageTag picks the right tag for a container image.
+//
+// Priority:
+//  1. FRAGLET_VEINS_FORCE_TAG — hard override, replaces tag unconditionally
+//  2. FRAGLET_VEIN_TAG_DISCOVERY_ORDER — comma-separated tags to try in order;
+//     uses the first tag whose image exists locally, falls back to the last tag
+//  3. The container string as-is from veins.yml
+func ResolveImageTag(container string) string {
+	if tag := os.Getenv("FRAGLET_VEINS_FORCE_TAG"); tag != "" {
+		return replaceTag(container, tag)
+	}
+
+	if order := os.Getenv("FRAGLET_VEIN_TAG_DISCOVERY_ORDER"); order != "" {
+		tags := strings.Split(order, ",")
+		for _, tag := range tags {
+			tag = strings.TrimSpace(tag)
+			if tag == "" {
+				continue
+			}
+			candidate := replaceTag(container, tag)
+			if imageExistsLocally(candidate) {
+				return candidate
+			}
+		}
+		if last := strings.TrimSpace(tags[len(tags)-1]); last != "" {
+			return replaceTag(container, last)
+		}
+	}
+
+	return container
+}
+
+// ApplyForceTag is kept for backward compatibility; delegates to ResolveImageTag.
+func ApplyForceTag(container string) string {
+	return ResolveImageTag(container)
 }
 
 // List returns all vein names

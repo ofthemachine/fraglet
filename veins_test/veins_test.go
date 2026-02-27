@@ -21,6 +21,9 @@ func TestVeins(t *testing.T) {
 		BinaryName:        "fragletc",
 		BuildCommand:      []string{"sh", "-c", "cd " + filepath.Dir(testDir) + " && make build && cp fragletc " + testDir + "/"},
 		ProjectRootMarker: "go.mod",
+		Environment: map[string]string{
+			"FRAGLET_VEIN_TAG_DISCOVERY_ORDER": "local,latest",
+		},
 	}
 
 	clitest.RunSuite(t, opts)

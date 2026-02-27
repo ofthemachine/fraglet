@@ -1,4 +1,6 @@
 #!/usr/bin/env -S fragletc --vein=hare
+use fmt;
+
 export fn main() void = {
-    fmt::println("Hello from fragment!")!;
+    fmt::println("Hello World!")!;
 };

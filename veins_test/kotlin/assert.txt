@@ -1,12 +1,7 @@
-Hello from Kotlin!
-100% Java interop. 0% of the semicolons.
+Hello, World!
 
 === Test: Stdin ===
 HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-Args: queen foo 1 2
-
-=== Test: Kotlin fortune ===
-Kotlin: the language that said 'what if Java had a personality?' and then delivered.

@@ -2,5 +2,5 @@
 import os
 
 fn main() {
-	println('Args: ' + os.args[1..].join(' '))
+    println('Args: ' + os.args[1..].join(' '))
 }

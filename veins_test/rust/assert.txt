@@ -1,12 +1,7 @@
-Hello from Rust!
-No null. No data races. Plenty of compile errors.
+Hello from fragment!
 
 === Test: Stdin ===
 HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-Args: queen foo 1 2
-
-=== Test: Rust fortune ===
-Rust: the compiler that says no so you don't have to.

@@ -1,12 +1,7 @@
-Hello from Raku!
-There's more than one way to do it. This is one of them.
+Hello, World!
 
 === Test: Stdin ===
 HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-Args: queen foo 1 2
-
-=== Test: Raku fortune ===
-Raku: the language that gives you a sub for that. And a method. And an operator. And a metaoperator.

@@ -1,4 +1,7 @@
 #!/usr/bin/env -S fragletc --vein=d-lang
-void main() {
-    writeln("Hello from fragment!");
+import std.stdio;
+
+void main()
+{
+    writeln("Hello World!");
 }

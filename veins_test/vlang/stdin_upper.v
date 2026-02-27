@@ -2,6 +2,6 @@
 import os
 
 fn main() {
-	line := os.input('')
-	println(line.to_upper())
+    line := os.input('')
+    println(line.to_upper())
 }

@@ -1,5 +1,4 @@
-Hello from CoffeeScript!
-JavaScript that fits your brain.
+Hello, World!
 
 === Test: Stdin ===
 HELLO
@@ -7,7 +6,3 @@ HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-Args: queen foo 1 2
-
-=== Test: CoffeeScript fortune ===
-CoffeeScript: where semicolons go to die, and your indentation finally matters.

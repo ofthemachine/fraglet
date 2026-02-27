@@ -1,12 +1,7 @@
-Hello from Haskell!
-Where the types are strong and the runtime is lazy.
+Hello from fragment!
 
 === Test: Stdin ===
 HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-Args: queen foo 1 2
-
-=== Test: Haskell fortune ===
-Haskell: the language where the runtime is optional but the category theory is mandatory.

@@ -1,6 +1,4 @@
 #!/bin/sh
-# Use local image so stdin works
-export FRAGLET_VEINS_FORCE_TAG=local
 set -e
 chmod +x ./*.arnoldc 2>/dev/null || true
 

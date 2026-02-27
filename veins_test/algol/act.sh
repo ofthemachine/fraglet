@@ -1,5 +1,4 @@
 #!/bin/sh
-export FRAGLET_VEINS_FORCE_TAG=local
 set -e
 chmod +x ./*.alg 2>/dev/null || true
 ./test.alg

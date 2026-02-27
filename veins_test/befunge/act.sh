@@ -1,5 +1,4 @@
 #!/bin/sh
-export FRAGLET_VEINS_FORCE_TAG=local
 set -e
 fragletc --vein=befunge test.bf
 

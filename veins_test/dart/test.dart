@@ -1,2 +1,4 @@
 #!/usr/bin/env -S fragletc --vein=dart
-print("Hello, World!");
+void main() {
+  print("Hello World!");
+}

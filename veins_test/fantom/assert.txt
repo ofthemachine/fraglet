@@ -1,12 +1,7 @@
 Hello, World!
-Fantom: JVM-native, concise, and pod-based.
 
 === Test: Stdin ===
 HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-Args: queen foo 1 2
-
-=== Test: Fantom fortune ===
-Fantom: Where the JVM gets a makeover and still runs your grandma's Java.

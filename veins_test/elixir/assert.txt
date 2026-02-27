@@ -1,3 +1,7 @@
 Hello, World!
-warning: unused import IO
-  /hello-world/hello-world.exs:3
+
+=== Test: Stdin ===
+HELLO
+
+=== Test: Argument passing ===
+Args: foo bar baz

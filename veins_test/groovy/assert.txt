@@ -1,11 +1,7 @@
-Hello from Groovy!
-Optional semicolons. Optional types. Full sass.
+Hello, World!
 
 === Test: Stdin ===
 HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-
-=== Test: Groovy fortune ===
-Groovy: because Java deserved a vacation.

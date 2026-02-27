@@ -44,30 +44,23 @@ get_hellos_dir() {
 # Prefers script extensions (e.g., .exs over .ex, .py over .pyw)
 get_extension() {
     local vein_name="$1"
-    # Find the vein entry and extract extensions, prefer script extensions
     awk -v name="$vein_name" '
         /^  - name: / { in_vein = ($3 == name) }
         in_vein && /extensions:/ {
-            # Extract extensions from [.ext1, .ext2] format
-            match($0, /\[([^\]]+)\]/, arr)
-            if (arr[1]) {
-                # Split by comma
-                n = split(arr[1], exts, ",")
-                # Prefer script extensions (exs, py, js, etc.)
-                for (i = 1; i <= n; i++) {
-                    gsub(/^[[:space:]]*\.|^\./, "", exts[i])
-                    ext = "." exts[i]
-                    # Prefer script extensions
-                    if (ext ~ /\.(exs|py|js|ts|rb|lua|sh|bash)$/) {
-                        print ext
-                        exit
-                    }
+            s = $0
+            gsub(/.*\[/, "", s)
+            gsub(/\].*/, "", s)
+            n = split(s, exts, ",")
+            for (i = 1; i <= n; i++) {
+                gsub(/^[[:space:]]*/, "", exts[i])
+                if (exts[i] ~ /^\.(exs|py|js|ts|rb|lua|sh|bash)$/) {
+                    print exts[i]
+                    exit
                 }
-                # Fall back to first extension
-                gsub(/^[[:space:]]*\.|^\./, "", exts[1])
-                print "." exts[1]
-                exit
             }
+            gsub(/^[[:space:]]*/, "", exts[1])
+            print exts[1]
+            exit
         }
         /^  - name: / && !in_vein { in_vein = 0 }
     ' "$VEINS_YML" | head -1
@@ -171,6 +164,12 @@ generate_lang() {
         return 1
     fi
 
+    # .go files in veins_test/ confuse the Go compiler; use .goz instead
+    local test_ext="$ext"
+    if [[ "$ext" == ".go" ]]; then
+        test_ext=".goz"
+    fi
+
     # Create directory
     mkdir -p "$lang_dir"
 
@@ -206,8 +205,8 @@ generate_lang() {
         code_source="minimal"
     fi
 
-    # Determine filename (use first extension)
-    local filename="test${ext}"
+    # Determine filename (use test_ext to avoid Go compiler conflicts)
+    local filename="test${test_ext}"
 
     # Create shebang script
     local script_file="$lang_dir/$filename"
@@ -222,7 +221,7 @@ generate_lang() {
     # Create act.sh (single smoke test; add echo_args/stdin if verify scripts exist)
     local act_file="$lang_dir/act.sh"
     local assert_file="$lang_dir/assert.txt"
-    { echo "#!/bin/sh"; echo "set -e"; echo "chmod +x ./*${ext} 2>/dev/null || true"; echo "./$filename"; } > "$act_file"
+    { echo "#!/bin/sh"; echo "set -e"; echo "chmod +x ./*${test_ext} 2>/dev/null || true"; echo "./$filename"; } > "$act_file"
     chmod +x "$act_file"
 
     # If 100hellos has verify_stdin.sh, create stdin_upper.<ext> and add to act.sh
@@ -231,39 +230,39 @@ generate_lang() {
     if [[ -f "$stdin_script" ]]; then
         stdin_code=$(extract_from_verify "$stdin_script" 2>/dev/null) || true
         if [[ -n "$stdin_code" ]]; then
-            stdin_file="$lang_dir/stdin_upper${ext}"
+            stdin_file="$lang_dir/stdin_upper${test_ext}"
             { echo "#!/usr/bin/env -S fragletc --vein=$lang"; echo "$stdin_code"; } > "$stdin_file"
             chmod +x "$stdin_file"
             echo "  Created: $stdin_file (from verify_stdin.sh)"
             echo '' >> "$act_file"
             echo 'echo ""' >> "$act_file"
             echo 'echo "=== Test: Stdin ==="' >> "$act_file"
-            echo "echo \"hello\" | ./stdin_upper${ext}" >> "$act_file"
+            echo "echo \"hello\" | ./stdin_upper${test_ext}" >> "$act_file"
         fi
     fi
     if [[ -f "$args_script" ]]; then
         args_code=$(extract_from_verify "$args_script" 2>/dev/null) || true
         if [[ -n "$args_code" ]]; then
-            args_file="$lang_dir/echo_args${ext}"
+            args_file="$lang_dir/echo_args${test_ext}"
             { echo "#!/usr/bin/env -S fragletc --vein=$lang"; echo "$args_code"; } > "$args_file"
             chmod +x "$args_file"
             echo "  Created: $args_file (from verify_args.sh)"
             echo '' >> "$act_file"
             echo 'echo ""' >> "$act_file"
             echo 'echo "=== Test: Argument passing ==="' >> "$act_file"
-            echo "./echo_args${ext} foo bar baz" >> "$act_file"
+            echo "./echo_args${test_ext} foo bar baz" >> "$act_file"
         fi
     fi
 
     # Generate assert.txt by running act.sh (or just main script if fragletc available)
     if command -v fragletc >/dev/null 2>&1; then
         echo "  Running act.sh to generate assert.txt..."
-        if output=$(cd "$lang_dir" && ./act.sh 2>&1); then
+        if output=$(cd "$lang_dir" && ./act.sh </dev/null 2>&1); then
             echo "$output" > "$assert_file"
             echo "  Created: $assert_file"
         else
             echo "  Warning: act.sh failed, creating assert from test script only" >&2
-            (cd "$lang_dir" && ./"$filename" 2>&1) > "$assert_file" || echo "" > "$assert_file"
+            (cd "$lang_dir" && ./"$filename" </dev/null 2>&1) > "$assert_file" || echo "" > "$assert_file"
         fi
     else
         echo "  Warning: fragletc not found, creating placeholder assert.txt" >&2

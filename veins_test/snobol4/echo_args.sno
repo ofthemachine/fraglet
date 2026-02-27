@@ -1,0 +1,7 @@
+#!/usr/bin/env -S fragletc --vein=snobol4
+        RESULT = "Args:"
+        I = 2
+NEXT    ARG = HOST(2, I)             :F(DONE)
+        RESULT = RESULT " " ARG
+        I = I + 1                    :(NEXT)
+DONE    OUTPUT = RESULT

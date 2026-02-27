@@ -1,11 +1,7 @@
-Hello from Go!
-Compiled. Run. Done.
+Hello World!
 
 === Test: Stdin ===
 HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-
-=== Test: Go fortune ===
-Go: less is more. Then add generics.

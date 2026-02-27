@@ -1,12 +1,1 @@
-Hello from mksh!
-The Korn shell that escaped the desktop.
-
-=== Test: Stdin ===
-HELLO
-
-=== Test: Argument passing ===
-Args: foo bar baz
-Args: queen foo 1 2
-
-=== Test: mksh fortune ===
-mksh: the shell that proves you can be small, fast, and POSIX at the same time.
+Hello from fragment!

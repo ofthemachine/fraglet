@@ -1,4 +1,2 @@
 #!/usr/bin/env -S fragletc --vein=dash
-# Dash: the POSIX shell that fits in your pocket.
-echo "Hello from dash!"
-echo "Small. Fast. No bloat."
+echo "Hello from fragment!"

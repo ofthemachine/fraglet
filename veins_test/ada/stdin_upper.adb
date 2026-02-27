@@ -1,5 +1,7 @@
 #!/usr/bin/env -S fragletc --vein=ada
-declare
+with Ada.Text_IO; use Ada.Text_IO;
+with Ada.Characters.Handling;
+procedure Hello is
   Line : String (1 .. 1024);
   Last : Natural;
 begin
@@ -7,4 +9,4 @@ begin
     Get_Line (Line, Last);
     Put_Line (Ada.Characters.Handling.To_Upper (Line (1 .. Last)));
   end loop;
-end;
+end Hello;

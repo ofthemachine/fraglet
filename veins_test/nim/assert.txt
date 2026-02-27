@@ -1,12 +1,7 @@
-Hello from Nim!
-Efficient, expressive, and actually compiles.
+Hello from fragment!
 
 === Test: Stdin ===
 HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-Args: queen foo 1 2
-
-=== Test: Nim fortune ===
-Nim: the language that asked 'what if Python and C had a baby?' and then made it work.

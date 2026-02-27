@@ -1,5 +1,4 @@
 #!/usr/bin/env -S fragletc --vein=nim
-
 import std/strutils
 try:
   while true:

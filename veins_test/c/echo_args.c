@@ -1,10 +1,7 @@
 #!/usr/bin/env -S fragletc --vein=c
 #include <stdio.h>
 int main(int argc, char *argv[]) {
-	int i;
-	printf("Args:");
-	for (i = 1; i < argc; i++)
-		printf(" %s", argv[i]);
-	printf("\n");
-	return 0;
+    if (argc > 1) printf("First: %s\n", argv[1]);
+    if (argc > 2) printf("Second: %s\n", argv[2]);
+    return 0;
 }

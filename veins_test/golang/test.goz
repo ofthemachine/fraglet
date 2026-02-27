@@ -1,9 +1,6 @@
 #!/usr/bin/env -S fragletc --vein=golang
-import (
-	"fmt"
-)
+import "fmt"
 
 func main() {
-	fmt.Println("Hello from Go!")
-	fmt.Println("Compiled. Run. Done.")
+	fmt.Println("Hello World!")
 }

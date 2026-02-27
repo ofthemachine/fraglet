@@ -1,12 +1,7 @@
 #!/usr/bin/env -S fragletc --vein=cpp
-int main(int argc, char* argv[]) {
-    std::cout << "Args: ";
-    for (int i = 1; i < argc; i++) {
-        if (i > 1) {
-            std::cout << " ";
-        }
-        std::cout << argv[i];
-    }
-    std::cout << std::endl;
+#include <iostream>
+int main(int argc, char *argv[]) {
+    if (argc > 1) std::cout << "First: " << argv[1] << std::endl;
+    if (argc > 2) std::cout << "Second: " << argv[2] << std::endl;
     return 0;
 }

@@ -4,4 +4,4 @@ Hello, World!
 HELLO
 
 === Test: Argument passing ===
-Args: 'foo' 'bar' 'baz'
+Args: foo bar baz

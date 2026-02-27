@@ -1,7 +1,6 @@
 #!/usr/bin/env -S fragletc --vein=c
 #include <stdio.h>
-int main(void) {
-	printf("Hello from C!\n");
-	printf("Portable. Predictable. No runtime surprise.\n");
-	return 0;
+int main() {
+    printf("Hello from fragment!\n");
+    return 0;
 }

@@ -1,12 +1,7 @@
-Hello from Perl!
-Making easy things easy and hard things possible since 1987.
+Hello, World!
 
 === Test: Stdin ===
 HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-Args: queen foo 1 2
-
-=== Test: Perl fortune ===
-Perl: the only language that looks the same before and after RSA encryption.

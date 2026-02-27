@@ -1,2 +1,10 @@
 #!/usr/bin/env -S fragletc --vein=csharp
-Console.WriteLine("Args: " + string.Join(" ", args));
+using System;
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        Console.WriteLine("Args: " + string.Join(" ", args));
+    }
+}
