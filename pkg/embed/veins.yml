@@ -44,10 +44,6 @@ veins:
     container: 100hellos/befunge:latest
     extensions: [.bf, .b93, .befunge]
 
-  - name: bqn
-    container: 100hellos/bqn:latest
-    extensions: [.bqn]
-
   - name: brainfuck
     container: 100hellos/brainfuck:latest
     extensions: [.bf, .b]
@@ -80,10 +76,6 @@ veins:
     container: 100hellos/crystal:latest
     extensions: [.cr]
 
-  - name: csharp
-    container: 100hellos/csharp:latest
-    extensions: [.cs]
-
   - name: d-lang
     container: 100hellos/d-lang:latest
     extensions: [.d]
@@ -102,7 +94,7 @@ veins:
 
   - name: elixir
     container: 100hellos/elixir:latest
-    extensions: [.ex, .exs]
+    extensions: [.exs, .ex]
 
   - name: emojicode
     container: 100hellos/emojicode:latest
@@ -132,10 +124,6 @@ veins:
     container: 100hellos/fortran:latest
     extensions: [.f, .f90, .f95, .f03, .f08]
 
-  - name: fsharp
-    container: 100hellos/fsharp:latest
-    extensions: [.fs, .fsx]
-
   - name: gleam
     container: 100hellos/gleam:latest
     extensions: [.gleam]
@@ -143,6 +131,7 @@ veins:
   - name: golang
     container: 100hellos/golang:latest
     extensions: [.go]
+    testExtension: .goz
 
   - name: groovy
     container: 100hellos/groovy:latest
@@ -195,10 +184,6 @@ veins:
   - name: lua
     container: 100hellos/lua:latest
     extensions: [.lua]
-
-  - name: mercury
-    container: 100hellos/mercury:latest
-    extensions: [.m]
 
   - name: mksh
     container: 100hellos/mksh:latest
@@ -264,10 +249,6 @@ veins:
     container: 100hellos/r-project:latest
     extensions: [.r, .R]
 
-  - name: racket
-    container: 100hellos/racket:latest
-    extensions: [.rkt]
-
   - name: raku
     container: 100hellos/raku:latest
     extensions: [.raku, .rakumod, .rakutest, .pm6]
@@ -320,17 +301,9 @@ veins:
     container: 100hellos/the-c-programming-language:latest
     extensions: [.c]
 
-  - name: tinygo
-    container: 100hellos/tinygo:latest
-    extensions: [.go]
-
   - name: typescript
     container: 100hellos/typescript:latest
     extensions: [.ts, .tsx]
-
-  - name: unlambda
-    container: 100hellos/unlambda:latest
-    extensions: [.unl]
 
   - name: vala
     container: 100hellos/vala:latest
@@ -339,10 +312,6 @@ veins:
   - name: verilog
     container: 100hellos/verilog:latest
     extensions: [.v, .vh]
-
-  - name: visual-basic
-    container: 100hellos/visual-basic:latest
-    extensions: [.vb]
 
   - name: vlang
     container: 100hellos/vlang:latest
@@ -356,17 +325,9 @@ veins:
     container: 100hellos/wren:latest
     extensions: [.wren]
 
-  - name: whitespace
-    container: 100hellos/whitespace:latest
-    extensions: [.ws]
-
   - name: zig
     container: 100hellos/zig:latest
     extensions: [.zig]
-
-  - name: zombie
-    container: 100hellos/zombie:latest
-    extensions: [.zombie]
 
   - name: zsh
     container: 100hellos/zsh:latest

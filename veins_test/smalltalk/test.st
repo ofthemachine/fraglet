@@ -1,2 +1,9 @@
 #!/usr/bin/env -S fragletc --vein=smalltalk
-'Hello, World!' displayNl
+Object subclass: Hello [
+  greet [
+    'Hello World!' displayNl
+  ]
+].
+
+greeting := Hello new.
+greeting greet.

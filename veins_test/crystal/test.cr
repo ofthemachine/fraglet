@@ -1,2 +1,9 @@
 #!/usr/bin/env -S fragletc --vein=crystal
-puts "Hello, World!"
+class Greeting
+  def greet(@name : String)
+    puts "Hello #{@name}!"
+  end
+end
+
+g = Greeting.new()
+g.greet("World")

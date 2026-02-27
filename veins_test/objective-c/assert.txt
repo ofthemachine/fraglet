@@ -1,7 +1,9 @@
-Hello from fragment!
+Hello World!
 
 === Test: Stdin ===
 HELLO
 
+
 === Test: Argument passing ===
 Args: foo bar baz
+# REGEX: .*autorelease called without pool.*

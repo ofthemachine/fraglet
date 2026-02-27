@@ -1,6 +1,7 @@
 #!/usr/bin/env -S fragletc --vein=cobol
 IDENTIFICATION DIVISION.
-PROGRAM-ID. HELLO.
+PROGRAM-ID. HELLO_WORLD.
+ENVIRONMENT DIVISION.
 PROCEDURE DIVISION.
-    DISPLAY "Hello, World!"
+    DISPLAY "Hello World!"
     STOP RUN.

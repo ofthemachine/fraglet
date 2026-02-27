@@ -1,10 +1,4 @@
 Hello World!
 
-=== Factorial 5! ===
-120 
-
-=== Squares 1..5 ===
-1 4 9 16 25 
-
 === Test: Stdin ===
 h

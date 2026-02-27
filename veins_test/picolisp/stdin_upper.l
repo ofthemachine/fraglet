@@ -1,2 +1,4 @@
 #!/usr/bin/env -S fragletc --vein=picolisp
-(in NIL (prinl (uppc (pack (line))))) (bye)
+(in NIL
+   (until (eof)
+      (prinl (uppc (line T)))))

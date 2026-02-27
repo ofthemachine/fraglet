@@ -4,5 +4,5 @@
 main() ->
     case io:get_line("") of
         eof -> ok;
-        Line -> io:format("~s", [string:to_upper(Line)]), main()
+        Line -> io:format("~s", [string:uppercase(Line)]), main()
     end.

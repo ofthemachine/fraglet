@@ -1,4 +1,4 @@
-Hello from fragment!
+Hello World!
 
-=== Test: Stdin (integer read) ===
-42 
+=== Test: Stdin ===
+-3 

@@ -1,10 +1,9 @@
 #!/bin/bash
-# generate.sh - Generate veins_test from 100hellos sources
 #
 # Usage:
-#   ./generate.sh elixir          # Generate test for elixir
-#   ./generate.sh --all            # Generate all available
-#   ./generate.sh --sync           # Update existing from 100hellos
+#   ./generate.sh --all           # Generate all, tracking progress
+#   ./generate.sh elixir          # Generate test for elixir (no progress tracking)
+#   ./generate.sh --reset         # Clear progress and start fresh
 
 set -euo pipefail
 
@@ -12,6 +11,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 VEINS_YML="$REPO_ROOT/pkg/embed/veins.yml"
 HELLOS_ROOT="${HELLOS_ROOT:-$HOME/repos/100hellos}"
+PROGRESS_FILE="$SCRIPT_DIR/.generate-passed"
+
+export FRAGLET_VEIN_TAG_DISCOVERY_ORDER="local,latest"
 
 if [[ ! -f "$VEINS_YML" ]]; then
     echo "Error: veins.yml not found at $VEINS_YML" >&2
@@ -24,8 +26,6 @@ if [[ ! -d "$HELLOS_ROOT" ]]; then
     exit 1
 fi
 
-# Get 100hellos directory name for a vein (from veins.yml container)
-# e.g. vein "c" -> "the-c-programming-language", vein "python" -> "python"
 get_hellos_dir() {
     local vein_name="$1"
     awk -v name="$vein_name" '
@@ -36,12 +36,9 @@ get_hellos_dir() {
             print
             exit
         }
-        /^  - name: / && !in_vein { in_vein = 0 }
     ' "$VEINS_YML"
 }
 
-# Get extension for a vein name from veins.yml
-# Prefers script extensions (e.g., .exs over .ex, .py over .pyw)
 get_extension() {
     local vein_name="$1"
     awk -v name="$vein_name" '
@@ -50,103 +47,78 @@ get_extension() {
             s = $0
             gsub(/.*\[/, "", s)
             gsub(/\].*/, "", s)
-            n = split(s, exts, ",")
-            for (i = 1; i <= n; i++) {
-                gsub(/^[[:space:]]*/, "", exts[i])
-                if (exts[i] ~ /^\.(exs|py|js|ts|rb|lua|sh|bash)$/) {
-                    print exts[i]
-                    exit
-                }
-            }
+            split(s, exts, ",")
             gsub(/^[[:space:]]*/, "", exts[1])
             print exts[1]
             exit
         }
-        /^  - name: / && !in_vein { in_vein = 0 }
-    ' "$VEINS_YML" | head -1
+    ' "$VEINS_YML"
 }
 
-# Extract code from verify.sh (first heredoc: either verify_fraglet "..." <<EOF or cat > "$tmp" <<'EOF')
-extract_from_verify() {
-    local verify_file="$1"
-    if [[ ! -f "$verify_file" ]]; then
-        return 1
+get_test_extension() {
+    local vein_name="$1"
+    local override
+    override=$(awk -v name="$vein_name" '
+        /^  - name: / { in_vein = ($3 == name) }
+        in_vein && /testExtension:/ {
+            gsub(/.*testExtension:[[:space:]]*/, "")
+            print
+            exit
+        }
+    ' "$VEINS_YML")
+    if [[ -n "$override" ]]; then
+        echo "$override"
+    else
+        get_extension "$vein_name"
     fi
+}
 
-    # Find first heredoc (<<'EOF', <<"EOF", or <<EOF) and extract body (lines after until ^EOF$)
-    awk '
+extract_fragment() {
+    local file="$1"
+    local code
+    code=$(awk '
         /<<[\047"]?EOF[\047"]?/ {
             while (getline > 0) {
                 if ($0 == "EOF") exit
                 print
             }
         }
-    ' "$verify_file"
-}
-
-# Extract first code block from guide.md Examples section
-extract_from_guide() {
-    local guide_file="$1"
-    if [[ ! -f "$guide_file" ]]; then
-        return 1
+    ' "$file")
+    if [[ -n "$code" ]]; then
+        echo "$code"
+        return
     fi
-
-    # Find Examples section, then first code block (just the first simple example)
-    awk '
-        /^## Examples/ { in_examples = 1 }
-        in_examples && /^```/ {
-            # Read code block
-            lang = $2
-            code_started = 0
-            while (getline > 0) {
-                if (/^```/) break
-                # Stop after first meaningful example (usually 3-5 lines)
-                if (code_started && NF == 0 && prev_was_code) {
-                    # Empty line after code, likely end of first example
-                    break
-                }
-                if (NF > 0) {
-                    code_started = 1
-                    prev_was_code = 1
-                } else {
-                    prev_was_code = 0
-                }
-                print
-            }
-            exit
-        }
-    ' "$guide_file" | head -10
+    awk -F"'" '/printf.*>.*\$tmp/ { for (i=4; i<=NF; i+=2) if (length($i) > 0) print $i }' "$file"
 }
 
-# Extract from hello-world file, stripping shebang
-extract_from_hello() {
+extract_fraglet_code() {
     local hello_file="$1"
-    if [[ ! -f "$hello_file" ]]; then
-        return 1
+    local code
+    code=$(awk '/BEGIN_FRAGLET/{found=1; next} /END_FRAGLET/{exit} found{print}' "$hello_file")
+    if [[ -n "$code" ]]; then
+        echo "$code"
+        return
     fi
-
-    # Strip shebang and BEGIN/END_FRAGLET markers
-    sed -E '
-        /^#!/d
-        /BEGIN_FRAGLET/d
-        /END_FRAGLET/d
-    ' "$hello_file"
+    sed '/^#!/d' "$hello_file"
 }
 
-# Find hello-world file for a language
-find_hello_world() {
-    local lang="$1"
-    local lang_dir="$HELLOS_ROOT/$lang"
-
-    if [[ ! -d "$lang_dir" ]]; then
-        return 1
+find_source_file() {
+    local hellos_dir="$1"
+    local ext="$2"
+    local result
+    result=$(find "$HELLOS_ROOT/$hellos_dir/files" -name "hello-world${ext}" 2>/dev/null | head -1)
+    if [[ -n "$result" ]]; then
+        echo "$result"
+        return
     fi
-
-    # Look in files/ directory
-    find "$lang_dir/files" -name "hello-world.*" 2>/dev/null | head -1
+    result=$(find "$HELLOS_ROOT/$hellos_dir/files" -name "*${ext}" 2>/dev/null | head -1)
+    if [[ -n "$result" ]]; then
+        echo "$result"
+        return
+    fi
+    find "$HELLOS_ROOT/$hellos_dir/files" -name "hello-world.*" ! -name "hello-world.sh" 2>/dev/null | head -1
 }
 
-# Generate test files for a language
 generate_lang() {
     local lang="$1"
     local lang_dir="$SCRIPT_DIR/$lang"
@@ -155,60 +127,33 @@ generate_lang() {
     [[ -z "$hellos_dir" ]] && hellos_dir="$lang"
     local hellos_lang_dir="$HELLOS_ROOT/$hellos_dir"
 
-    echo "Generating test for: $lang (100hellos/$hellos_dir)"
-
-    # Get extension
-    local ext=$(get_extension "$lang")
+    local ext
+    ext=$(get_extension "$lang")
     if [[ -z "$ext" ]]; then
-        echo "  Warning: No extension found for vein '$lang', skipping" >&2
+        echo "  SKIP $lang: no extension" >&2
         return 1
     fi
 
-    # .go files in veins_test/ confuse the Go compiler; use .goz instead
-    local test_ext="$ext"
-    if [[ "$ext" == ".go" ]]; then
-        test_ext=".goz"
+    local test_ext
+    test_ext=$(get_test_extension "$lang")
+
+    local hello_file
+    hello_file=$(find_source_file "$hellos_dir" "$ext")
+    if [[ -z "$hello_file" ]]; then
+        echo "  SKIP $lang: no source file" >&2
+        return 1
     fi
 
-    # Create directory
+    local code
+    code=$(extract_fraglet_code "$hello_file")
+    if [[ -z "$code" ]]; then
+        echo "  SKIP $lang: empty extraction" >&2
+        return 1
+    fi
+
     mkdir -p "$lang_dir"
 
-    # Try to extract code in priority order
-    local code=""
-    local code_source=""
-
-    # 1. Try verify.sh
-    local verify_file="$hellos_lang_dir/fraglet/verify.sh"
-    if code=$(extract_from_verify "$verify_file" 2>/dev/null) && [[ -n "$code" ]]; then
-        code_source="verify.sh"
-    # 2. Try guide.md
-    elif code=$(extract_from_guide "$hellos_lang_dir/fraglet/guide.md" 2>/dev/null) && [[ -n "$code" ]]; then
-        code_source="guide.md"
-    # 3. Try hello-world file
-    elif hello_file=$(find_hello_world "$lang") && [[ -n "$hello_file" ]]; then
-        code=$(extract_from_hello "$hello_file" 2>/dev/null)
-        code_source="hello-world"
-    fi
-
-    if [[ -z "$code" ]]; then
-        echo "  Warning: No code found for $lang, creating minimal test" >&2
-        # Create minimal hello world based on extension
-        case "$ext" in
-            .py) code='print("Hello, World!")' ;;
-            .exs|.ex) code='IO.puts("Hello, World!")' ;;
-            .js) code='console.log("Hello, World!");' ;;
-            .rb) code='puts "Hello, World!"' ;;
-            .lua) code='print("Hello, World!")' ;;
-            .c) code='#include <stdio.h>\nint main() { printf("Hello, World!\\n"); return 0; }' ;;
-            *) code='echo "Hello, World!"' ;;
-        esac
-        code_source="minimal"
-    fi
-
-    # Determine filename (use test_ext to avoid Go compiler conflicts)
     local filename="test${test_ext}"
-
-    # Create shebang script
     local script_file="$lang_dir/$filename"
     {
         echo "#!/usr/bin/env -S fragletc --vein=$lang"
@@ -216,37 +161,34 @@ generate_lang() {
     } > "$script_file"
     chmod +x "$script_file"
 
-    echo "  Created: $script_file (from $code_source)"
-
-    # Create act.sh (single smoke test; add echo_args/stdin if verify scripts exist)
     local act_file="$lang_dir/act.sh"
     local assert_file="$lang_dir/assert.txt"
     { echo "#!/bin/sh"; echo "set -e"; echo "chmod +x ./*${test_ext} 2>/dev/null || true"; echo "./$filename"; } > "$act_file"
     chmod +x "$act_file"
 
-    # If 100hellos has verify_stdin.sh, create stdin_upper.<ext> and add to act.sh
     local stdin_script="$hellos_lang_dir/fraglet/verify_stdin.sh"
-    local args_script="$hellos_lang_dir/fraglet/verify_args.sh"
     if [[ -f "$stdin_script" ]]; then
-        stdin_code=$(extract_from_verify "$stdin_script" 2>/dev/null) || true
+        local stdin_code
+        stdin_code=$(extract_fragment "$stdin_script") || true
         if [[ -n "$stdin_code" ]]; then
-            stdin_file="$lang_dir/stdin_upper${test_ext}"
+            local stdin_file="$lang_dir/stdin_upper${test_ext}"
             { echo "#!/usr/bin/env -S fragletc --vein=$lang"; echo "$stdin_code"; } > "$stdin_file"
             chmod +x "$stdin_file"
-            echo "  Created: $stdin_file (from verify_stdin.sh)"
             echo '' >> "$act_file"
             echo 'echo ""' >> "$act_file"
             echo 'echo "=== Test: Stdin ==="' >> "$act_file"
             echo "echo \"hello\" | ./stdin_upper${test_ext}" >> "$act_file"
         fi
     fi
+
+    local args_script="$hellos_lang_dir/fraglet/verify_args.sh"
     if [[ -f "$args_script" ]]; then
-        args_code=$(extract_from_verify "$args_script" 2>/dev/null) || true
+        local args_code
+        args_code=$(extract_fragment "$args_script") || true
         if [[ -n "$args_code" ]]; then
-            args_file="$lang_dir/echo_args${test_ext}"
+            local args_file="$lang_dir/echo_args${test_ext}"
             { echo "#!/usr/bin/env -S fragletc --vein=$lang"; echo "$args_code"; } > "$args_file"
             chmod +x "$args_file"
-            echo "  Created: $args_file (from verify_args.sh)"
             echo '' >> "$act_file"
             echo 'echo ""' >> "$act_file"
             echo 'echo "=== Test: Argument passing ==="' >> "$act_file"
@@ -254,45 +196,73 @@ generate_lang() {
         fi
     fi
 
-    # Generate assert.txt by running act.sh (or just main script if fragletc available)
-    if command -v fragletc >/dev/null 2>&1; then
-        echo "  Running act.sh to generate assert.txt..."
-        if output=$(cd "$lang_dir" && ./act.sh </dev/null 2>&1); then
-            echo "$output" > "$assert_file"
-            echo "  Created: $assert_file"
-        else
-            echo "  Warning: act.sh failed, creating assert from test script only" >&2
-            (cd "$lang_dir" && ./"$filename" </dev/null 2>&1) > "$assert_file" || echo "" > "$assert_file"
-        fi
-    else
-        echo "  Warning: fragletc not found, creating placeholder assert.txt" >&2
-        echo "  Run the test manually and update assert.txt" >&2
-        echo "" > "$assert_file"
+    if ! command -v fragletc >/dev/null 2>&1; then
+        echo "  FAIL $lang: fragletc not found" >&2
+        return 1
+    fi
+
+    local stdout_tmp stderr_tmp
+    stdout_tmp=$(mktemp)
+    stderr_tmp=$(mktemp)
+    (cd "$lang_dir" && ./act.sh </dev/null) >"$stdout_tmp" 2>"$stderr_tmp" || true
+    local output
+    output=$(cat "$stdout_tmp" "$stderr_tmp")
+    rm -f "$stdout_tmp" "$stderr_tmp"
+    echo "$output" > "$assert_file"
+
+    if ! echo "$output" | grep -q "Hello World"; then
+        echo "  FAIL $lang: assert.txt missing 'Hello World'" >&2
+        echo "$output" >&2
+        return 1
     fi
 }
 
-# Main
 if [[ $# -eq 0 ]]; then
-    echo "Usage: $0 <language> | --all | --sync" >&2
+    echo "Usage: $0 <language> | --all | --reset" >&2
     exit 1
 fi
 
+if [[ "$1" == "--reset" ]]; then
+    rm -f "$PROGRESS_FILE"
+    echo "Progress reset."
+    exit 0
+fi
+
 if [[ "$1" == "--all" ]]; then
-    # Generate all languages from veins.yml
-    grep "^  - name:" "$VEINS_YML" | sed 's/^  - name: //' | while read -r lang; do
-        generate_lang "$lang" || true
-    done
-elif [[ "$1" == "--sync" ]]; then
-    # Update existing tests
-    for lang_dir in "$SCRIPT_DIR"/*/; do
-        if [[ -d "$lang_dir" ]]; then
-            lang=$(basename "$lang_dir")
-            if [[ "$lang" != "veins_test.go" && "$lang" != "README.md" && "$lang" != "generate.sh" && "$lang" != "fragletc" ]]; then
-                generate_lang "$lang" || true
-            fi
+    touch "$PROGRESS_FILE"
+    skipped=0
+    passed=0
+
+    while read -r lang; do
+        if grep -qx "$lang" "$PROGRESS_FILE" 2>/dev/null; then
+            skipped=$((skipped + 1))
+            continue
         fi
-    done
+
+        if [[ $skipped -gt 0 ]]; then
+            echo "  (skipped $skipped already-passed)"
+            skipped=0
+        fi
+
+        echo "--- $lang"
+        if generate_lang "$lang"; then
+            echo "$lang" >> "$PROGRESS_FILE"
+            passed=$((passed + 1))
+            echo "  ✓ $lang"
+        else
+            echo ""
+            echo "To retry after fixing: $0 --all"
+            exit 1
+        fi
+    done < <(grep "^  - name:" "$VEINS_YML" | sed 's/^  - name: //')
+
+    if [[ $skipped -gt 0 ]]; then
+        echo "  (skipped $skipped already-passed)"
+    fi
+
+    total=$(wc -l < "$PROGRESS_FILE" | tr -d ' ')
+    echo ""
+    echo "Done. $passed newly passed, $total total passed."
 else
-    # Generate specific language
     generate_lang "$1"
 fi

@@ -1,2 +1,3 @@
 #!/usr/bin/env -S fragletc --vein=mksh
-print "Hello from fragment!"
+
+print "Hello World!"

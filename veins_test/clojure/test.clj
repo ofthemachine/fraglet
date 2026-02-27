@@ -1,2 +1,4 @@
 #!/usr/bin/env -S fragletc --vein=clojure
-(println "Hello, World!")
+; hello-world.clj
+
+(println "Hello World!")

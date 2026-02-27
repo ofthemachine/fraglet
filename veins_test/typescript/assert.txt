@@ -1,7 +1,6 @@
-Hello, World!
+Hello World!
 
 === Test: Stdin ===
-hello-world.ts(1,12): error TS2580: Cannot find name 'require'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node`.
 HELLO
 
 === Test: Argument passing ===

@@ -1,3 +1,4 @@
 #!/usr/bin/env -S fragletc --vein=io
-args := System args rest
-("Args: " .. args join(" ")) println
+write("Args:")
+System args rest foreach(arg, write(" " .. arg))
+writeln

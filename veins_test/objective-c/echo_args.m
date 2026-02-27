@@ -1,7 +1,8 @@
 #!/usr/bin/env -S fragletc --vein=objective-c
+#import <stdio.h>
 int main(int argc, char *argv[]) {
-    int i;
     printf("Args:");
+    int i;
     for (i = 1; i < argc; i++)
         printf(" %s", argv[i]);
     printf("\n");

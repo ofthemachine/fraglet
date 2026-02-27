@@ -1,3 +1,0 @@
-#!/usr/bin/env -S fragletc --vein=zombie
-
-zombie hello-world.zombie

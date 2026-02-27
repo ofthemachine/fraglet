@@ -1,5 +1,22 @@
 #!/usr/bin/env -S fragletc --vein=objective-c
-int main(int argc, char *argv[]) {
-    printf("Hello from fragment!\n");
+@interface Greeting : NSObject {
+}
+
+- (void)greet: (char *)noun;
+@end
+
+@implementation Greeting
+-(void) greet: (char *)noun
+{
+    printf("Hello %s!\n", noun);
+}
+@end
+
+int main(int argv, char* argc[])
+{
+    id greeting = [Greeting new];
+
+    [greeting greet: "World"];
+    
     return 0;
 }

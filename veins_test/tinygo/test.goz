@@ -1,6 +1,0 @@
-#!/usr/bin/env -S fragletc --vein=tinygo
-import "fmt"
-
-func main() {
-	fmt.Println("Hello World!")
-}

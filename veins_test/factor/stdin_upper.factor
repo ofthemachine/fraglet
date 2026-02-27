@@ -1,3 +1,3 @@
 #!/usr/bin/env -S fragletc --vein=factor
-USING: io unicode ;
+USING: io kernel ascii ;
 readln >upper print

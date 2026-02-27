@@ -1,5 +1,5 @@
 #!/usr/bin/env -S fragletc --vein=verilog
 initial begin
-    $display("Hello from fragment!");
+    $display ("Hello World!");
     $finish;
 end

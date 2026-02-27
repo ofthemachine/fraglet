@@ -1,4 +1,4 @@
-Hello, World!
+[1] "Hello World!"
 
 === Test: Stdin ===
 HELLO 

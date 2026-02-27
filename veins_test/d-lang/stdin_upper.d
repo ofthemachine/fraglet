@@ -1,7 +1,7 @@
 #!/usr/bin/env -S fragletc --vein=d-lang
 import std.stdio;
-import std.string : toUpper, strip;
-import std.conv : to;
+import std.string;
+import std.conv;
 
 void main() {
     foreach (line; stdin.byLine) {

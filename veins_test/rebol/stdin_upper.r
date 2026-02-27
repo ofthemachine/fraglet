@@ -1,2 +1,3 @@
 #!/usr/bin/env -S fragletc --vein=rebol
-print uppercase input
+line: input
+print uppercase line

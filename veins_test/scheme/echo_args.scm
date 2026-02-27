@@ -1,5 +1,6 @@
 #!/usr/bin/env -S fragletc --vein=scheme
-(import (chibi))
+(import (scheme base))
+(import (scheme write))
 (import (scheme process-context))
 (import (chibi string))
 (display "Args: ")

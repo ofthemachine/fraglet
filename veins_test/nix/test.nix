@@ -1,2 +1,2 @@
 #!/usr/bin/env -S fragletc --vein=nix
-"Hello from fragment!"
+let name = "World"; in "Hello ${name}!"
