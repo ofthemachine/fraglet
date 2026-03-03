@@ -2,6 +2,8 @@ name: 🚀 Release fragletc
 
 on:
   push:
+    branches:
+      - main
     paths:
       - 'cli/releases/**'
   workflow_dispatch:
