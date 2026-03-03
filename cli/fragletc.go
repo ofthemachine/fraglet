@@ -370,7 +370,7 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 `)
 	}
 
-	guideFlags.Parse(os.Args[2:])
+	guideFlags.Parse(reorderArgs(os.Args[2:]))
 	args := guideFlags.Args()
 
 	if len(args) == 0 {
@@ -419,6 +419,31 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 
 func handleMCP() {
 	tools.Server.Run(context.Background(), &mcp.StdioTransport{})
+}
+
+// reorderArgs moves flag-like arguments before positional arguments so Go's
+// standard flag package can parse them regardless of where the user placed them.
+// Flags using --flag=value syntax are handled as a single token. Flags using
+// --flag value syntax consume the next argument as the value (unless it also
+// starts with "-"). Stops reordering at a bare "--" separator.
+func reorderArgs(args []string) []string {
+	var flags, positionals []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--" {
+			positionals = append(positionals, args[i+1:]...)
+			break
+		}
+		if strings.HasPrefix(args[i], "-") {
+			flags = append(flags, args[i])
+			if !strings.Contains(args[i], "=") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				i++
+				flags = append(flags, args[i])
+			}
+		} else {
+			positionals = append(positionals, args[i])
+		}
+	}
+	return append(flags, positionals...)
 }
 
 func usage() {

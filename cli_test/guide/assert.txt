@@ -1,0 +1,17 @@
+=== Test 1: Default guide (no mode) ===
+Guide: default mode
+
+=== Test 2: Mode flag BEFORE vein name (long form) ===
+Guide: testmode active
+
+=== Test 3: Mode flag AFTER vein name (long form, equals) ===
+Guide: testmode active
+
+=== Test 4: Mode flag AFTER vein name (long form, space) ===
+Guide: testmode active
+
+=== Test 5: Short mode flag AFTER vein name ===
+Guide: testmode active
+
+=== Test 6: Short mode flag BEFORE vein name ===
+Guide: testmode active

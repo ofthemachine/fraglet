@@ -1,0 +1,8 @@
+fragletTempPath: /FRAGLET
+injection:
+  codePath: /code/noop.sh
+  match: FRAGLET
+guide: /guide.md
+execution:
+  path: /code/noop.sh
+  makeExecutable: true
