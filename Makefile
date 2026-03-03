@@ -35,7 +35,7 @@ test-entrypoint:
 test-veins:
 	cd veins_test && go test -tags=integration -v .
 
-test-cli:
+test-cli: build-info
 	cd cli_test && go test -tags=integration -v .
 
 # Run 100hellos fraglet verify.sh for a language. Requires HELLOS_ROOT (default: $HOME/repos/100hellos).

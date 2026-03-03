@@ -21,12 +21,7 @@ jobs:
 
       - name: Generate build info
         run: |
-          VERSION=$(ls cli/releases/*.md 2>/dev/null | xargs -I{} basename {} .md | sort -V | tail -1)
-          [ -z "$VERSION" ] && VERSION="dev"
-          COMMIT=$(git rev-parse HEAD)
-          BUILD_TIME=$(git show -s --format=%cI HEAD)
-          printf '{\n  "version": "%s",\n  "commit": "%s",\n  "buildTime": "%s",\n  "dirty": %s\n}\n' \
-            "$VERSION" "$COMMIT" "$BUILD_TIME" "false" > cli/build-info.json
+          make build-info
           echo "Embedded build info:"
           cat cli/build-info.json
 
