@@ -16,14 +16,14 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
-      - name: Run tests
-        run: go test ./...
-
       - name: Generate build info
         run: |
           make build-info
           echo "Embedded build info:"
           cat cli/build-info.json
+
+      - name: Run tests
+        run: go test ./...
 
       - name: Build multi-arch binaries (Linux + Windows + macOS)
         run: |
