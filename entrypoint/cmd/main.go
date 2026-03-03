@@ -30,6 +30,9 @@ func main() {
 		case "guide":
 			showDocumentation(cfg, cfg.Guide, "")
 			return
+		case "version":
+			handleVersion()
+			return
 		}
 	}
 

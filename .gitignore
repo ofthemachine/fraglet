@@ -3,7 +3,8 @@ fraglet-entrypoint
 fraglet-entrypoint-linux*
 fragletc
 
-
+# Build provenance
+build-info.json
 *.exe
 *.exe~
 *.dll

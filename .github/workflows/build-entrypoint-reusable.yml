@@ -26,37 +26,45 @@ jobs:
         run: |
           go test ./...
 
-      - name: Build multi-arch binaries
+      - name: Generate build info
         working-directory: entrypoint
         run: |
-          COMMIT_SHA=$(git rev-parse HEAD)
-          SHORT_SHA=$(git rev-parse --short=7 HEAD)
-          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          COMMIT=$(git rev-parse HEAD)
+          BUILD_TIME=$(git show -s --format=%cI HEAD)
 
-          # Use provided version or generate from commit
           VERSION="${{ inputs.version }}"
           if [ -z "$VERSION" ]; then
+            SHORT_SHA=$(git rev-parse --short=7 HEAD)
             VERSION="dev+sha.${SHORT_SHA}"
           fi
 
-          # Build for each platform
+          printf '{\n  "version": "%s",\n  "commit": "%s",\n  "buildTime": "%s",\n  "dirty": %s\n}\n' \
+            "$VERSION" "$COMMIT" "$BUILD_TIME" "false" > cmd/build-info.json
+          echo "Embedded build info:"
+          cat cmd/build-info.json
+
+      - name: Build multi-arch binaries
+        working-directory: entrypoint
+        run: |
+          set -e
           for platform in "linux/amd64" "linux/arm64"; do
-            GOOS=$(echo $platform | cut -d'/' -f1)
-            GOARCH=$(echo $platform | cut -d'/' -f2)
+            GOOS=$(echo "$platform" | cut -d'/' -f1)
+            GOARCH=$(echo "$platform" | cut -d'/' -f2)
             PLATFORM_NAME="${GOOS}-${GOARCH}"
 
             echo "Building ${PLATFORM_NAME}..."
 
-            CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} go build \
-              -ldflags="-s -w -X main.commit=${COMMIT_SHA} -X main.buildTime=${BUILD_TIME}" \
+            CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" go build \
+              -trimpath -buildvcs=false -ldflags="-s -w" \
               -o "fraglet-entrypoint-${PLATFORM_NAME}" ./cmd
 
-            # Generate checksum
             sha256sum "fraglet-entrypoint-${PLATFORM_NAME}" > "fraglet-entrypoint-${PLATFORM_NAME}.sha256"
           done
 
-          # Create combined checksums
           sha256sum fraglet-entrypoint-* | grep -v "\.sha256" > checksums.txt
+
+      - name: Save build-info.json for reproducibility
+        run: cp entrypoint/cmd/build-info.json entrypoint/build-info.json
 
       - name: Upload binaries as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -65,5 +73,6 @@ jobs:
           path: |
             entrypoint/fraglet-entrypoint-*
             entrypoint/checksums.txt
+            entrypoint/build-info.json
           retention-days: 1
 

@@ -1,4 +1,4 @@
-.PHONY: run test lint build install build-info test-integration test-harness test-entrypoint test-veins verify-100hellos
+.PHONY: run test lint build install build-info build-entrypoint build-entrypoint-info test-integration test-harness test-entrypoint test-veins verify-100hellos
 
 # Veins are embedded directly from pkg/embed/veins.yml via go:embed
 # No build-time copying needed
@@ -25,6 +25,18 @@ install: build
 	@GOBIN=$$(go env GOBIN); \
 	if [ -z "$$GOBIN" ]; then GOBIN=$$(go env GOPATH)/bin; fi; \
 	cp fragletc $$GOBIN/
+
+build-entrypoint-info:
+	@VERSION=$$(ls entrypoint/releases/*.md 2>/dev/null | xargs -I{} basename {} .md | sort -V | tail -1); \
+	[ -z "$$VERSION" ] && VERSION="dev"; \
+	COMMIT=$$(git rev-parse HEAD 2>/dev/null || echo "unknown"); \
+	BUILD_TIME=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
+	DIRTY=$$([ -z "$$(git status --porcelain 2>/dev/null)" ] && echo "false" || echo "true"); \
+	printf '{\n  "version": "%s",\n  "commit": "%s",\n  "buildTime": "%s",\n  "dirty": %s\n}\n' \
+		"$$VERSION" "$$COMMIT" "$$BUILD_TIME" "$$DIRTY" > entrypoint/cmd/build-info.json
+
+build-entrypoint: build-entrypoint-info
+	cd entrypoint && CGO_ENABLED=0 go build $(GO_BUILD_FLAGS) -o ../fraglet-entrypoint ./cmd
 
 test:
 	go test ./...
