@@ -1,10 +1,25 @@
-.PHONY: run test lint build install test-integration test-harness test-entrypoint test-veins verify-100hellos
+.PHONY: run test lint build install build-info test-integration test-harness test-entrypoint test-veins verify-100hellos
 
 # Veins are embedded directly from pkg/embed/veins.yml via go:embed
 # No build-time copying needed
 
-build:
-	go build -o fragletc ./cli
+# Reproducible build flags — same source + same Go version = identical binary.
+# -trimpath: strips host-specific paths from the binary
+# -buildvcs=false: we embed our own provenance via build-info.json
+# -s -w: strip symbol table and DWARF (smaller binary, matches CI)
+GO_BUILD_FLAGS = -trimpath -buildvcs=false -ldflags="-s -w"
+
+build-info:
+	@VERSION=$$(ls cli/releases/*.md 2>/dev/null | xargs -I{} basename {} .md | sort -V | tail -1); \
+	[ -z "$$VERSION" ] && VERSION="dev"; \
+	COMMIT=$$(git rev-parse HEAD 2>/dev/null || echo "unknown"); \
+	BUILD_TIME=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
+	DIRTY=$$([ -z "$$(git status --porcelain 2>/dev/null)" ] && echo "false" || echo "true"); \
+	printf '{\n  "version": "%s",\n  "commit": "%s",\n  "buildTime": "%s",\n  "dirty": %s\n}\n' \
+		"$$VERSION" "$$COMMIT" "$$BUILD_TIME" "$$DIRTY" > cli/build-info.json
+
+build: build-info
+	CGO_ENABLED=0 go build $(GO_BUILD_FLAGS) -o fragletc ./cli
 
 install: build
 	@GOBIN=$$(go env GOBIN); \

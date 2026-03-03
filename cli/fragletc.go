@@ -41,6 +41,9 @@ func main() {
 		case "mcp":
 			handleMCP()
 			return
+		case "version":
+			handleVersion()
+			return
 		}
 	}
 
@@ -482,6 +485,7 @@ Subcommands:
                 Use "fragletc refresh --help" for details
   guide         Show fraglet guide for a vein
                 Use "fragletc guide --help" for details
+  version       Show build version, commit, and lineage info
 
 Examples:
   # Infer vein from extension

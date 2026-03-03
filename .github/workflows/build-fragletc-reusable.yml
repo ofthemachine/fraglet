@@ -19,6 +19,17 @@ jobs:
       - name: Run tests
         run: go test ./...
 
+      - name: Generate build info
+        run: |
+          VERSION=$(ls cli/releases/*.md 2>/dev/null | xargs -I{} basename {} .md | sort -V | tail -1)
+          [ -z "$VERSION" ] && VERSION="dev"
+          COMMIT=$(git rev-parse HEAD)
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{\n  "version": "%s",\n  "commit": "%s",\n  "buildTime": "%s",\n  "dirty": %s\n}\n' \
+            "$VERSION" "$COMMIT" "$BUILD_TIME" "false" > cli/build-info.json
+          echo "Embedded build info:"
+          cat cli/build-info.json
+
       - name: Build multi-arch binaries (Linux + Windows + macOS)
         run: |
           set -e
@@ -31,13 +42,16 @@ jobs:
 
             echo "Building ${PLATFORM_NAME}..."
             CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" go build \
-              -ldflags="-s -w" \
+              -trimpath -buildvcs=false -ldflags="-s -w" \
               -o "${OUT}" ./cli
 
             sha256sum "${OUT}" > "${OUT}.sha256"
           done
 
           sha256sum fragletc-* | grep -v "\.sha256" > checksums.txt
+
+      - name: Save build-info.json for reproducibility
+        run: cp cli/build-info.json build-info.json
 
       - name: Upload binaries as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -46,4 +60,5 @@ jobs:
           path: |
             fragletc-*
             checksums.txt
+            build-info.json
           retention-days: 1
