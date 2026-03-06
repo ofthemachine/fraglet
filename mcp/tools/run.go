@@ -12,61 +12,50 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ofthemachine/fraglet/pkg/embed"
 	"github.com/ofthemachine/fraglet/pkg/runner"
+	"github.com/ofthemachine/fraglet/pkg/save"
 	"github.com/ofthemachine/fraglet/pkg/vein"
 )
 
 var RunTool *mcp.Tool
 
-func init() {
-	// Load veins (checks FRAGLET_VEINS_PATH first, then embedded)
-	registry, err := vein.LoadAuto(embed.LoadEmbeddedVeins)
+const runToolDescriptionBase = "Execute code snippets for code-based reasoning, leveraging the best language and ecosystem for each task. " +
+	"Run small code fragments in isolated sandboxes that may include rich libraries, frameworks, and domain-specific tools. " +
+	"Each environment provides not just the language, but potentially fluent interfaces for complex systems interactions, " +
+	"data processing libraries, APIs, and more. Use this to explore statistical reasoning, probabilities, mathematical computation, " +
+	"physics simulations, data analysis, and other problem domains best solved with code. " +
+	"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language—those guides already include everything you need, so do not hunt through repos or veins. " +
+	"Each language has specific requirements about code format (e.g., complete programs vs. code fragments, required structure, etc.) " +
+	"that you must follow. " +
+	"A fraglet is an executable code file that runs in a containerized sandbox. When writing fraglets to disk, use the shebang #!/usr/bin/env -S fragletc --vein=<lang> where <lang> matches the lang parameter. Files with this shebang are directly executable via ./filename. " +
+	"Optional: mode and annotations (key:value tokens, e.g. determinism:deterministic, math:number-theory)."
 
+func init() {
+	registry, err := vein.LoadAuto(embed.LoadEmbeddedVeins)
 	if err != nil {
-		// If veins can't be loaded, use placeholder description
 		RunTool = &mcp.Tool{
-			Name: "run",
-			Description: "Execute code snippets for code-based reasoning, leveraging the best language and ecosystem for each task. " +
-				"Run small code fragments in isolated sandboxes that may include rich libraries, frameworks, and domain-specific tools. " +
-				"Each environment provides not just the language, but potentially fluent interfaces for complex systems interactions, " +
-				"data processing libraries, APIs, and more. Use this to explore statistical reasoning, probabilities, mathematical computation, " +
-				"physics simulations, data analysis, and other problem domains best solved with code. " +
-				"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language—those guides already include everything you need, so do not hunt through repos or veins. " +
-				"Each language has specific requirements about code format (e.g., complete programs vs. code fragments, required structure, etc.) " +
-				"that you must follow. " +
-				"A fraglet is an executable code file that runs in a containerized sandbox. When writing fraglets to disk, use the shebang #!/usr/bin/env -S fragletc --vein=<lang> where <lang> matches the lang parameter. Files with this shebang are directly executable via ./filename.",
-			Annotations: &mcp.ToolAnnotations{
-				ReadOnlyHint: true,
-			},
+			Name:        "run",
+			Description: runToolDescriptionBase,
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		}
 		return
 	}
-
-	veins := registry.List()
 	RunTool = &mcp.Tool{
 		Name: "run",
-		Description: fmt.Sprintf("Execute code snippets for code-based reasoning, leveraging the best language and ecosystem for each task. "+
-			"Run small code fragments in isolated sandboxes that may include rich libraries, frameworks, and domain-specific tools. "+
-			"Each environment provides not just the language, but potentially fluent interfaces for complex systems interactions, "+
-			"data processing libraries, APIs, and more. Use this to explore statistical reasoning, probabilities, mathematical computation, "+
-			"physics simulations, data analysis, and other problem domains best solved with code. "+
-			"Supported languages: %s. "+
-			"IMPORTANT: Before writing code, use the 'language_help' tool to get the authoring guide for your chosen language—those guides already include everything you need, so do not hunt through repos or veins. "+
-			"Each language has specific requirements about code format (e.g., complete programs vs. code fragments, required structure, etc.) "+
-			"that you must follow. Use this for quick code invocations to test hypotheses, calculate values, analyze data, or prototype solutions. Runs are limited to 60s by default; pass timeout_seconds to override. "+
-			"A fraglet is an executable code file that runs in a containerized sandbox. When writing fraglets to disk, use the shebang #!/usr/bin/env -S fragletc --vein=<lang> where <lang> matches the lang parameter. Files with this shebang are directly executable via ./filename.",
-			strings.Join(veins, ", ")),
-		Annotations: &mcp.ToolAnnotations{
-			ReadOnlyHint: true,
-		},
+		Description: runToolDescriptionBase +
+			"Supported languages: " + strings.Join(registry.List(), ", ") + ". " +
+			"Runs are limited to 60s by default; pass timeout_seconds to override. ",
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 	}
 }
 
 const DefaultRunTimeout = 60 * time.Second
 
 type RunInput struct {
-	Lang          string `json:"lang" jsonschema:"the language (vein) to run the code in — corresponds to --vein in the fragletc CLI"`
-	Code          string `json:"code" jsonschema:"the code to run"`
-	TimeoutSeconds int    `json:"timeout_seconds,omitempty" jsonschema:"max execution time in seconds; default 60, 0 means use default"`
+	Lang           string   `json:"lang" jsonschema:"the language (vein) to run the code in"`
+	Code           string   `json:"code" jsonschema:"the code to run"`
+	TimeoutSeconds int      `json:"timeout_seconds,omitempty" jsonschema:"max execution time in seconds; default 60, 0 means use default"`
+	Mode           string   `json:"mode,omitempty" jsonschema:"optional mode; when provided, uses that execution mode for the container"`
+	Annotations    []string `json:"annotations,omitempty" jsonschema:"optional key:value tokens (e.g. determinism:deterministic, math:number-theory)"`
 }
 
 type RunOutput struct {
@@ -112,9 +101,16 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 	img := v.ContainerImage()
 	r := runner.NewRunner(img, "")
 
+	// Build env: optional FRAGLET_CONFIG when mode is set
+	var envVars []string
+	if input.Mode != "" {
+		envVars = append(envVars, fmt.Sprintf("FRAGLET_CONFIG=/fraglet-%s.yml", input.Mode))
+	}
+
 	// Execute with volume mount. Stdin and script args are not passed through the MCP run tool (code-only).
 	spec := runner.RunSpec{
 		Container: img,
+		Env:       envVars,
 		Args:      nil,
 		Volumes: []runner.VolumeMount{
 			{
@@ -132,6 +128,15 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 			result = runner.RunResult{Stderr: timeoutMsg, ExitCode: 124}
 		} else {
 			return nil, RunOutput{}, fmt.Errorf("execution failed: %w", err)
+		}
+	}
+
+	// Persist on success when save path is configured (invisible to agent: no path/hash in response)
+	if result.ExitCode == 0 {
+		if saveRoot := getRunSavePath(); saveRoot != "" {
+			imageWithDigest, _ := vein.ResolveImageDigest(runCtx, img)
+			saver := &save.LocalSave{Root: saveRoot}
+			_ = saver.Save(runCtx, input.Lang, imageWithDigest, input.Mode, input.Annotations, input.Code)
 		}
 	}
 

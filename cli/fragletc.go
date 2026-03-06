@@ -13,6 +13,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ofthemachine/fraglet/mcp/tools"
 	"github.com/ofthemachine/fraglet/pkg/embed"
+	"github.com/ofthemachine/fraglet/pkg/guide"
 	"github.com/ofthemachine/fraglet/pkg/runner"
 	"github.com/ofthemachine/fraglet/pkg/vein"
 )
@@ -388,25 +389,7 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 		fatal("Error loading veins: %v", err)
 	}
 
-	v, ok := registry.Get(veinName)
-	if !ok {
-		fatal("Error: vein not found: %s", veinName)
-	}
-
-	var envVars []string
-	if *mode != "" {
-		envVars = append(envVars, fmt.Sprintf("FRAGLET_CONFIG=/fraglet-%s.yml", *mode))
-	}
-
-	img := v.ContainerImage()
-	r := runner.NewRunner(img, "")
-	spec := runner.RunSpec{
-		Container: img,
-		Env:       envVars,
-		Args:      []string{"guide"},
-	}
-
-	result, err := r.Run(context.Background(), spec)
+	result, err := guide.Run(context.Background(), registry, veinName, *mode)
 	if err != nil {
 		fatal("Error running guide: %v", err)
 	}
@@ -421,7 +404,41 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 }
 
 func handleMCP() {
+	mcpFlags := flag.NewFlagSet("mcp", flag.ExitOnError)
+	savePath := mcpFlags.String("save", "", "Directory to persist successfully run fraglets (content-addressed); optional")
+	mcpFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, `Usage: fragletc mcp [options]
+
+Start the MCP (Model Context Protocol) server over stdio.
+
+Options:
+  --save path   If set, successfully run fraglets are persisted under path (by lang and content hash).
+                Use with Cursor, Claude Desktop, or any MCP-compatible client.
+
+Examples:
+  fragletc mcp
+  fragletc mcp --save=$HOME/.fraglet/store
+`)
+	}
+	_ = mcpFlags.Parse(os.Args[2:])
+	if *savePath != "" {
+		tools.SetRunSavePath(expandSavePath(*savePath))
+	}
 	tools.Server.Run(context.Background(), &mcp.StdioTransport{})
+}
+
+// expandSavePath expands $VAR and ${VAR} in path, and replaces leading ~ with the user's home directory.
+func expandSavePath(path string) string {
+	path = os.ExpandEnv(path)
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			if path == "~" {
+				return home
+			}
+			return filepath.Join(home, path[2:])
+		}
+	}
+	return path
 }
 
 // reorderArgs moves flag-like arguments before positional arguments so Go's

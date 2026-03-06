@@ -1,6 +1,7 @@
 package vein
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -120,4 +121,21 @@ func (r *VeinRegistry) List() []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+// ResolveImageDigest returns the image reference with an immutable digest when available
+// (e.g. ghcr.io/foo/python:3.12 -> ghcr.io/foo/python@sha256:...). Used for persisted
+// fraglet artifacts so re-execution uses the same image. If the image cannot be resolved
+// to a digest (e.g. local-only image), returns the original image reference unchanged.
+func ResolveImageDigest(ctx context.Context, image string) (string, error) {
+	cmd := exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "{{index .RepoDigests 0}}", image)
+	out, err := cmd.Output()
+	if err != nil {
+		return image, nil // return as-is so save still works
+	}
+	digestRef := strings.TrimSpace(string(out))
+	if digestRef == "" || digestRef == "<no value>" {
+		return image, nil
+	}
+	return digestRef, nil
 }
