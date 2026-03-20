@@ -11,7 +11,8 @@ These tests verify:
 - File input handling (positional arguments)
 - Extension-to-vein inference
 - Vein mode syntax (`vein:mode`)
-- Fraglet path configuration (`--fraglet-path` / `-p`)
+- Fraglet path configuration (`--fraglet-path`; long form only)
+- `--fraglet-help` and `fraglet-meta:` parameter declarations (shebang files + `-c`, dedup, errors); `-p` / `--param` / `--fraglet-help` stripped from argv anywhere before `--`
 - Error handling and validation
 
 ## Structure
@@ -19,11 +20,12 @@ These tests verify:
 Each test category has its own directory:
 ```
 cli_test/
-  stdin/      - STDIN input tests
-  file/       - File input tests
-  vein/       - Embedded vein tests
-  errors/     - Error handling tests
-  cli_test.go - Test harness using clitest
+  stdin/         - STDIN input tests
+  file/          - File input tests
+  vein/          - Embedded vein tests
+  fraglet_help/  - --fraglet-help + fraglet-meta (multi-scenario act/assert)
+  errors/        - Error handling tests
+  cli_test.go    - Test harness using clitest
 ```
 
 ## Test Format
@@ -60,5 +62,9 @@ go test -tags=integration -v .
 
 - **cli_test**: Tests the CLI tool itself with direct container images and embedded veins
 - **veins_test**: Tests vein correctness by name (uses embedded veins only)
+
+## Difference from entrypoint tests
+
+- **`--param` / `-p`** plus **FRAGLET_PARAM_* → bare env** (coerce + strip) is exercised in [`entrypoint/tests/params_coerce`](../entrypoint/tests/params_coerce): that suite **`docker build`s a small test image** whose Dockerfile **`COPY`s a locally compiled `fraglet-entrypoint` binary** and sets it as `ENTRYPOINT`. **`cli_test` `inline_code`** uses raw `--image` (typical `docker run … sh -c`); it does not layer or invoke that binary, so it does not assert param transport semantics.
 
 

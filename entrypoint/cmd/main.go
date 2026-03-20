@@ -10,6 +10,7 @@ import (
 
 	"github.com/ofthemachine/fraglet/entrypoint/internal/executor"
 	"github.com/ofthemachine/fraglet/entrypoint/internal/fraglet"
+	"github.com/ofthemachine/fraglet/entrypoint/internal/params"
 	fragletpkg "github.com/ofthemachine/fraglet/pkg/fraglet"
 )
 
@@ -31,6 +32,19 @@ func main() {
 			showDocumentation(cfg, cfg.Guide, "")
 			return
 		}
+	}
+
+	// Coerce FRAGLET_PARAM_* env vars into bare env vars.
+	// The entrypoint is dumb: it strips the prefix and passes values through.
+	// This does **not** clobber existing env vars.
+	// Decoding (b64, cb64) already happened caller-side in fragletc.
+	coerced, err := params.Coerce()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error coercing params: %v\n", err)
+		os.Exit(1)
+	}
+	for _, p := range coerced {
+		os.Setenv(p.Name, p.Value)
 	}
 
 	// Process fraglet injection

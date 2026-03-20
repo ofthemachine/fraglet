@@ -340,8 +340,8 @@ All changes implemented and tested. Stdin passes through the full Docker boundar
 - **Haskell** — `interact (map toUpper)`
 - **Perl** — `while (<STDIN>) { print uc($_); }`
 - **Lua** — `for line in io.lines() do print(string.upper(line)) end`
-- **Kotlin** — `readLine()` + `uppercase()`
-- **Scala** — `scala.io.StdIn.readLine().toUpperCase`
+- **Kotlin** — full `main` + `Scanner` line loop (snippets-only break 100hellos execution / can hang on stdin)
+- **Scala** — full `object Main` + `Source.stdin.getLines` (same)
 
 ### Testing Approach
 The new entrypoint binary was mounted into existing 100hellos containers via `-v`, overriding the baked-in binary. This proves the fix works without rebuilding any container images. The 100hellos update path is to bump the `FRAGLET_VERSION` in `000-base/Dockerfile` once a new release is cut.

@@ -6,6 +6,3 @@ Hello with short flag!
 
 === Test 3: Inline code with custom --fraglet-path ===
 Custom path!
-
-=== Test 4: Inline code with short -p flag ===
-Short path flag!

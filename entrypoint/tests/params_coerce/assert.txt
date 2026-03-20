@@ -1,0 +1,20 @@
+=== Test 1: Basic param injection ===
+city=london
+
+=== Test 2: Multiple params ===
+city=paris
+units=metric
+
+=== Test 3: Case-preserved env var name ===
+host=localhost
+
+=== Test 4: No-shadow (HOME already exists) ===
+# HOME is set by the OS, so the injected value should be ignored
+# REGEX: home=/.*
+
+=== Test 5: Transport var cleaned after coercion ===
+city=tokyo
+transport=unset
+
+=== Test 6: No params — runs normally ===
+ok

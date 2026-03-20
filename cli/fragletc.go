@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ofthemachine/fraglet/mcp/tools"
 	"github.com/ofthemachine/fraglet/pkg/embed"
+	"github.com/ofthemachine/fraglet/pkg/fraglet"
 	"github.com/ofthemachine/fraglet/pkg/guide"
 	"github.com/ofthemachine/fraglet/pkg/runner"
 	"github.com/ofthemachine/fraglet/pkg/vein"
@@ -62,11 +64,21 @@ func main() {
 	// Short forms
 	flag.StringVar(veinSpec, "v", "", "Vein name with optional mode (short form)")
 	flag.StringVar(image, "i", "", "Container image (short form)")
-	flag.StringVar(fragletPath, "p", defaultFragletPath, "Path where code is mounted (short form)")
 	flag.StringVar(mode, "m", "", "Fraglet mode (short form)")
 	flag.StringVar(inlineCode, "code", "", "Program passed in as string (like python -c)")
 
-	flag.Parse()
+	// Strip --fraglet-help and extract -p / --param from the full argv (anywhere), then flag.Parse.
+	// Params are not registered on the flag set — only this pass sees them. Tokens after "--"
+	// are left alone (--fraglet-help, -p, etc. pass through to the program).
+	filtered, wantFragletHelp, paramStrs, err := preprocessFragletArgv(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(2)
+	}
+	if err := flag.CommandLine.Parse(filtered); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(2)
+	}
 
 	// Positional: [script-file] [script-args...]
 	args := flag.Args()
@@ -75,6 +87,12 @@ func main() {
 	if len(args) > 0 {
 		scriptFile = args[0]
 		scriptArgs = args[1:]
+	}
+
+	// --- Handle --fraglet-help (consumed from argv; never forwarded to the script) ---
+	if wantFragletHelp {
+		handleFragletHelp(scriptFile, *inlineCode)
+		return
 	}
 
 	// --- Resolve vein + mode ---
@@ -93,6 +111,32 @@ func main() {
 
 	// --- Build env vars ---
 	envVars := buildEnvVars(finalMode, envFlags)
+
+	// --- Parse and resolve params (FRAGLET_PARAM_* transport; entrypoint coerces when present) ---
+	var params fraglet.Params
+	if len(paramStrs) > 0 {
+		for _, pf := range paramStrs {
+			p, err := fraglet.ParseParam(pf)
+			if err != nil {
+				fatal("Error: %v", err)
+			}
+			params = append(params, p)
+		}
+		// Resolve aliases via fraglet-meta declarations if code is available
+		decls := fraglet.ParseParamDecls(code)
+		if len(decls) > 0 {
+			var err error
+			params, err = params.ResolveAliases(decls)
+			if err != nil {
+				fatal("Error: %v", err)
+			}
+		}
+		transportEnv, err := params.ToTransportEnv()
+		if err != nil {
+			fatal("Error: %v", err)
+		}
+		envVars = append(envVars, transportEnv...)
+	}
 
 	// --- Write temp file, build spec, execute ---
 	tmpFile, cleanup, err := writeTempFile(code)
@@ -283,6 +327,75 @@ func stripShebang(code string) string {
 	return code
 }
 
+// fragletHelpLabel is the name shown for --fraglet-help output: argv[0] basename, or "<inline>".
+func fragletHelpLabel(scriptFile string) string {
+	if scriptFile == "" {
+		return "<inline>"
+	}
+	return filepath.Base(scriptFile)
+}
+
+func handleFragletHelp(scriptFile, inlineCode string) {
+	code := inlineCode
+	if code == "" && scriptFile != "" {
+		data, err := os.ReadFile(scriptFile)
+		if err != nil {
+			fatal("Error reading file %s: %v", scriptFile, err)
+		}
+		code = string(data)
+	}
+	if code == "" {
+		fatal("Error: --fraglet-help requires a script file or -c code")
+	}
+
+	decls := fraglet.ParseParamDecls(code)
+	desc := fraglet.ParseMetaDescription(code)
+	label := fragletHelpLabel(scriptFile)
+
+	if desc != "" {
+		fmt.Fprintf(os.Stdout, "%s\n\n", desc)
+	}
+
+	if len(decls) == 0 {
+		fmt.Printf("No parameters declared in %s.\n", label)
+		fmt.Fprintf(os.Stdout, "\nAdd param= under fraglet-meta to list names here; optional description= or d= on its own fraglet-meta line.\n")
+		return
+	}
+
+	fmt.Printf("Parameters for %s:\n", label)
+	for _, d := range decls {
+		var parts []string
+		if d.IsRequired() {
+			parts = append(parts, "required")
+		} else {
+			parts = append(parts, "optional")
+		}
+		if def, ok := d.Default(); ok {
+			parts = append(parts, "default: "+def)
+		}
+		modStr := strings.Join(parts, ", ")
+		fmt.Printf("  %-12s (%s)%s\n", d.Alias, modStr, envVarArrow(d))
+	}
+	printFragletInvokeHint(label)
+}
+
+// printFragletInvokeHint is short user-facing text (shebang-first). Detail lives in fragletc --help.
+func printFragletInvokeHint(label string) {
+	if label == "<inline>" {
+		fmt.Fprintf(os.Stdout, "\nPass: fragletc --vein=<vein> -p name=value ... -c '<code>'\n")
+		return
+	}
+	fmt.Fprintf(os.Stdout, "\nPass: ./%s -p name=value ...  (repeat -p per parameter; see fragletc --help)\n", label)
+}
+
+func envVarArrow(d fraglet.ParamDecl) string {
+	defaultEnv := strings.ToUpper(d.Alias)
+	if d.EnvVar != defaultEnv {
+		return fmt.Sprintf("    → %s", d.EnvVar)
+	}
+	return ""
+}
+
 func handleRefresh() {
 	refreshFlags := flag.NewFlagSet("refresh", flag.ExitOnError)
 	all := refreshFlags.Bool("all", false, "Refresh all veins")
@@ -441,6 +554,63 @@ func expandSavePath(path string) string {
 	return path
 }
 
+const fragletHelpArg = "--fraglet-help"
+
+// preprocessFragletArgv removes --fraglet-help and -p/--param (with values) from argv before
+// flag.Parse. Extraction applies to the whole command line except tokens after a bare "--"
+// (passthrough). Bundled "-pKEY=value" is accepted only when '=' appears in the suffix so
+// flags like -path are not treated as params.
+func preprocessFragletArgv(args []string) (filtered []string, wantHelp bool, params []string, err error) {
+	passthrough := false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if passthrough {
+			filtered = append(filtered, a)
+			continue
+		}
+		if a == "--" {
+			filtered = append(filtered, a)
+			passthrough = true
+			continue
+		}
+		if a == fragletHelpArg {
+			wantHelp = true
+			continue
+		}
+		if strings.HasPrefix(a, "--param=") {
+			params = append(params, a[len("--param="):])
+			continue
+		}
+		if a == "--param" {
+			if i+1 >= len(args) {
+				return nil, false, nil, errors.New("--param requires a value")
+			}
+			i++
+			params = append(params, args[i])
+			continue
+		}
+		if strings.HasPrefix(a, "-p=") {
+			params = append(params, a[len("-p="):])
+			continue
+		}
+		if a == "-p" {
+			if i+1 >= len(args) {
+				return nil, false, nil, errors.New("-p requires a value")
+			}
+			i++
+			params = append(params, args[i])
+			continue
+		}
+		// -pKEY=value (require '=' in suffix; avoid gobbling -path, -print, etc.)
+		if strings.HasPrefix(a, "-p") && len(a) > 2 && a[2] != '=' && strings.Contains(a[2:], "=") {
+			params = append(params, a[2:])
+			continue
+		}
+		filtered = append(filtered, a)
+	}
+	return filtered, wantHelp, params, nil
+}
+
 // reorderArgs moves flag-like arguments before positional arguments so Go's
 // standard flag package can parse them regardless of where the user placed them.
 // Flags using --flag=value syntax are handled as a single token. Flags using
@@ -479,17 +649,30 @@ Flags:
         Container image to use directly (e.g., my-registry/python:latest)
   -c, --code string
         Program passed in as string (like python -c)
+  -p, --param (preprocessed, not a flag)
+        Fraglet-meta parameters as KEY=value (repeatable; any position before "--"). Forms include
+        -p K=V, --param K=V, -p=K=V, --param=K=V, and -pK=V when '=' appears in the suffix.
+        Optional encodings: -p key=b64:...  See --fraglet-help on a script for its declarations.
+  --fraglet-path string
+        Path where code is mounted in container (default: /FRAGLET; long form only)
   -e string
         Environment variable to forward into container (repeatable)
         Use -e FOO to forward host value, -e FOO=bar for explicit value
-  -p, --fraglet-path string
-        Path where code is mounted in container (default: /FRAGLET)
+  --fraglet-help
+        Show parameter declarations from fraglet-meta and exit (may appear before or after script-file).
+        Like -p/--param, removed from argv before your program runs (any position before "--").
+        After "--", --fraglet-help and -p/--param pass through unchanged.
   -m, --mode string
         Fraglet mode (sets FRAGLET_CONFIG=/fraglet-{mode}.yml)
 
 Positional:
   script-file   Path to code file (required if -c not set)
-  script-args   Arguments passed to the script inside container
+  script-args   Tail arguments for your program inside the container
+
+First, -p/--param/--fraglet-help are removed from argv anywhere before a bare "--". Then normal
+flags (-v, -c, …) are parsed and must come before script-file. Example: ./tool.py -p city=paris
+--profile prod strips -p; --profile and prod are program argv. Use "--" so -p/--param/--fraglet-help
+are not stripped.
 
 Stdin:
   Stdin is always forwarded to the program inside the container.
@@ -521,6 +704,9 @@ Examples:
 
   # Forward environment variables
   fragletc --vein=python -e DATABASE_URL -e DEBUG=1 script.py
+
+  # Parameters (short -p)
+  fragletc --vein=python -p city=london script.py
 
   # In a shebang
   #!/usr/bin/env -S fragletc --vein=python -e API_KEY

@@ -11,6 +11,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ofthemachine/fraglet/pkg/embed"
+	"github.com/ofthemachine/fraglet/pkg/fraglet"
 	"github.com/ofthemachine/fraglet/pkg/runner"
 	"github.com/ofthemachine/fraglet/pkg/save"
 	"github.com/ofthemachine/fraglet/pkg/vein"
@@ -51,11 +52,12 @@ func init() {
 const DefaultRunTimeout = 60 * time.Second
 
 type RunInput struct {
-	Lang           string   `json:"lang" jsonschema:"the language (vein) to run the code in"`
-	Code           string   `json:"code" jsonschema:"the code to run"`
-	TimeoutSeconds int      `json:"timeout_seconds,omitempty" jsonschema:"max execution time in seconds; default 60, 0 means use default"`
-	Mode           string   `json:"mode,omitempty" jsonschema:"optional mode; when provided, uses that execution mode for the container"`
-	Annotations    []string `json:"annotations,omitempty" jsonschema:"optional key:value tokens (e.g. determinism:deterministic, math:number-theory)"`
+	Lang           string            `json:"lang" jsonschema:"the language (vein) to run the code in"`
+	Code           string            `json:"code" jsonschema:"the code to run"`
+	TimeoutSeconds int               `json:"timeout_seconds,omitempty" jsonschema:"max execution time in seconds; default 60, 0 means use default"`
+	Mode           string            `json:"mode,omitempty" jsonschema:"optional mode; when provided, uses that execution mode for the container"`
+	Annotations    []string          `json:"annotations,omitempty" jsonschema:"optional key:value tokens (e.g. determinism:deterministic, math:number-theory)"`
+	Params         map[string]string `json:"params,omitempty" jsonschema:"parameters injected as env vars, keyed by alias with optional type prefix (e.g. raw, b64, cb64)"`
 }
 
 type RunOutput struct {
@@ -105,6 +107,31 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 	var envVars []string
 	if input.Mode != "" {
 		envVars = append(envVars, fmt.Sprintf("FRAGLET_CONFIG=/fraglet-%s.yml", input.Mode))
+	}
+
+	// Parse and resolve params
+	var params fraglet.Params
+	if len(input.Params) > 0 {
+		for alias, value := range input.Params {
+			p, err := fraglet.ParseParam(alias + "=" + value)
+			if err != nil {
+				return nil, RunOutput{}, fmt.Errorf("param %q: %w", alias, err)
+			}
+			params = append(params, p)
+		}
+		decls := fraglet.ParseParamDecls(input.Code)
+		if len(decls) > 0 {
+			var err error
+			params, err = params.ResolveAliases(decls)
+			if err != nil {
+				return nil, RunOutput{}, fmt.Errorf("param resolution: %w", err)
+			}
+		}
+		transportEnv, err := params.ToTransportEnv()
+		if err != nil {
+			return nil, RunOutput{}, fmt.Errorf("param transport env: %w", err)
+		}
+		envVars = append(envVars, transportEnv...)
 	}
 
 	// Execute with volume mount. Stdin and script args are not passed through the MCP run tool (code-only).

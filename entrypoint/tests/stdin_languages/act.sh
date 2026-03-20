@@ -45,15 +45,6 @@ echo "hello from java" | docker run --rm -i \
   100hellos/java:latest 2>&1
 
 echo ""
-echo "=== C#: stdin pipe ==="
-echo "hello from csharp" | docker run --rm -i \
-  -v "$ENTRYPOINT:/fraglet-entrypoint:ro" \
-  -v "$(pwd)/fraglets/stdin-cs.cs:/FRAGLET:ro" \
-  -e DOTNET_NOLOGO=1 \
-  -e DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 \
-  100hellos/csharp:latest 2>/dev/null
-
-echo ""
 echo "=== Python: stdin + args ==="
 echo "piped-data" | docker run --rm -i \
   -v "$ENTRYPOINT:/fraglet-entrypoint:ro" \

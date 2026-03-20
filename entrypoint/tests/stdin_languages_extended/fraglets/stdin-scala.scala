@@ -1,2 +1,5 @@
-val input = scala.io.StdIn.readLine()
-        println(input.toUpperCase)
+object Main {
+  def main(args: Array[String]): Unit = {
+    scala.io.Source.stdin.getLines().foreach(line => println(line.toUpperCase))
+  }
+}

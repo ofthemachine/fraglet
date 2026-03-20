@@ -1,0 +1,7 @@
+fragletTempPath: /FRAGLET
+injection:
+  codePath: /code/printer.sh
+  match: FRAGLET
+execution:
+  path: /code/printer.sh
+  makeExecutable: true

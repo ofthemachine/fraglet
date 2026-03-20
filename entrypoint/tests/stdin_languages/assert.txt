@@ -18,9 +18,6 @@ HELLO FROM CPP
 === Java: stdin pipe ===
 HELLO FROM JAVA
 
-=== C#: stdin pipe ===
-HELLO FROM CSHARP
-
 === Python: stdin + args ===
 args: arg1 arg2
 stdin: piped-data

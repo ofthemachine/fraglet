@@ -14,6 +14,5 @@ echo ""
 echo "=== Test 3: Inline code with custom --fraglet-path ==="
 fragletc -c 'print("Custom path!")' --image 100hellos/python:latest --fraglet-path /FRAGLET
 
-echo ""
-echo "=== Test 4: Inline code with short -p flag ==="
-fragletc -c 'print("Short path flag!")' -i 100hellos/python:latest -p /FRAGLET
+# --param / -p: FRAGLET_PARAM_* → bare env + stripping is entrypoint behavior; see entrypoint/tests/params_coerce.
+# This suite uses --image + sh -c and does not layer fraglet-entrypoint (veins_test uses vein images / shebang path).

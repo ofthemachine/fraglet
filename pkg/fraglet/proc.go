@@ -12,4 +12,3 @@ func NewFragletProc(code string) FragletProc {
 func (p FragletProc) Code() string {
 	return string(p)
 }
-

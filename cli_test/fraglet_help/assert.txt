@@ -1,0 +1,62 @@
+=== Test: shebang fraglet ./params_example.py --fraglet-help ===
+Fixture: sample fraglet-meta params for CLI help tests.
+
+Parameters for params_example.py:
+  city         (required)
+  host         (required)    → HURL_VARIABLE_host
+  units        (optional, default: metric)
+
+Pass: ./params_example.py -p name=value ...  (repeat -p per parameter; see fragletc --help)
+
+=== Test: shebang fraglet ./multiline_meta.py --fraglet-help ===
+Parameters for multiline_meta.py:
+  alpha        (required)
+  beta         (optional, default: x)
+  gamma        (optional)    → CUSTOM_GAMMA
+
+Pass: ./multiline_meta.py -p name=value ...  (repeat -p per parameter; see fragletc --help)
+
+=== Test: shebang fraglet absolute path .../multiline_meta.py --fraglet-help ===
+Parameters for multiline_meta.py:
+  alpha        (required)
+  beta         (optional, default: x)
+  gamma        (optional)    → CUSTOM_GAMMA
+
+Pass: ./multiline_meta.py -p name=value ...  (repeat -p per parameter; see fragletc --help)
+
+=== Test: shebang fraglet ./bare.py --fraglet-help ===
+No parameters declared in bare.py.
+
+Add param= under fraglet-meta to list names here; optional description= or d= on its own fraglet-meta line.
+
+=== Test: fragletc --fraglet-help -c with fraglet-meta ===
+Parameters for <inline>:
+  port         (optional, default: 8080)    → HURL_VARIABLE_port
+
+Pass: fragletc --vein=<vein> -p name=value ... -c '<code>'
+
+=== Test: fragletc --fraglet-help -c without meta ===
+No parameters declared in <inline>.
+
+Add param= under fraglet-meta to list names here; optional description= or d= on its own fraglet-meta line.
+
+=== Test: fragletc --fraglet-help with no script or -c ===
+Error: --fraglet-help requires a script file or -c code
+
+=== Test: shebang fraglet ./dup_params.py --fraglet-help ===
+Parameters for dup_params.py:
+  city         (optional)
+
+Pass: ./dup_params.py -p name=value ...  (repeat -p per parameter; see fragletc --help)
+
+=== Test: shebang fraglet forwards script args (only --fraglet-help is special) ===
+['--scheme', 'https', 'api.example']
+
+=== Test: -p after script path is gobbled (fraglet-meta transport, not argv) ===
+['tail']
+
+=== Test: program flags after script stay argv; -p stripped in the middle ===
+['--profile', 'prod', 'extra']
+
+=== Test: after -- , -p passes through to program argv (not gobbled) ===
+['--', '-p', 'ghost=value']

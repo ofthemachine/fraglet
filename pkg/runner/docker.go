@@ -124,10 +124,12 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 	var tempFile string
 	var cleanup func()
 
+	allEnv := spec.Env
+
 	attachStdin := spec.StdinReader != nil || spec.Stdin != ""
 	base := newDockerRunBuilder(platform, attachStdin)
 	withCommon := func(b *dockerRunBuilder) *dockerRunBuilder {
-		return b.Env(spec.Env).WorkDir(spec.WorkDir).Volumes(spec.Volumes)
+		return b.Env(allEnv).WorkDir(spec.WorkDir).Volumes(spec.Volumes)
 	}
 
 	switch {
@@ -143,7 +145,7 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 		}
 		args = base.Entrypoint(spec.Entrypoint).
 			Volume(tempFile, "/tmp/script", true).
-			Env(spec.Env).WorkDir(spec.WorkDir).Volumes(spec.Volumes).
+			Env(allEnv).WorkDir(spec.WorkDir).Volumes(spec.Volumes).
 			Image(spec.Container).Args("/tmp/script").Args(spec.Args...).Build()
 	case spec.Entrypoint != "":
 		// Entrypoint only: no command body.

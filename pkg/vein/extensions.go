@@ -39,8 +39,8 @@ func WarnExtensionConflicts(registry *VeinRegistry) {
 
 // ExtensionMap maps file extensions to vein names
 type ExtensionMap struct {
-	extToVein     map[string]string   // e.g., ".py" -> "python"
-	extConflicts  map[string][]string // e.g., ".m" -> ["mercury", "objective-c", "octave"]
+	extToVein    map[string]string   // e.g., ".py" -> "python"
+	extConflicts map[string][]string // e.g., ".m" -> ["mercury", "objective-c", "octave"]
 }
 
 // NewExtensionMap creates an extension map from a registry

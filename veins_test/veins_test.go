@@ -28,4 +28,3 @@ func TestVeins(t *testing.T) {
 
 	clitest.RunSuite(t, opts)
 }
-
