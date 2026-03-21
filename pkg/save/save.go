@@ -58,6 +58,11 @@ func HashContent(content []byte) string {
 	return fmt.Sprintf("%x", h[:])
 }
 
+// NewLocalSave creates a new LocalSave instance with the given root directory.
+func NewLocalSave(root string) *LocalSave {
+	return &LocalSave{Root: root}
+}
+
 // LocalSave is a synchronous filesystem implementation of ArtifactSaver.
 // Path layout: root/lang/[tagPrefix/]h[:2]/h[2:]. If annotations are present, the first (lexically)
 // annotation's tag-prefix (the part before the first ':') is used as a subfolder under lang;

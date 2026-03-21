@@ -1,9 +1,0 @@
-fragletTempPath: /FRAGLET
-injection:
-  codePath: /code/hello-world-range.sh
-  match_start: START
-  match_end: END
-guide: /guide.md
-execution:
-  path: /code/hello-world-range.sh
-  makeExecutable: true

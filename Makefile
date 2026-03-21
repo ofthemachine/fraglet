@@ -10,16 +10,19 @@
 GO_BUILD_FLAGS = -trimpath -buildvcs=false -ldflags="-s -w"
 
 build-info:
-	@VERSION=$$(ls cli/releases/*.md 2>/dev/null | xargs -I{} basename {} .md | sort -V | tail -1); \
+	@VERSION=$$(ls cmd/fragletc/releases/*.md 2>/dev/null | xargs -I{} basename {} .md | sort -V | tail -1); \
 	[ -z "$$VERSION" ] && VERSION="dev"; \
 	COMMIT=$$(git rev-parse HEAD 2>/dev/null || echo "unknown"); \
 	BUILD_TIME=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
 	DIRTY=$$([ -z "$$(git status --porcelain 2>/dev/null)" ] && echo "false" || echo "true"); \
 	printf '{\n  "version": "%s",\n  "commit": "%s",\n  "buildTime": "%s",\n  "dirty": %s\n}\n' \
-		"$$VERSION" "$$COMMIT" "$$BUILD_TIME" "$$DIRTY" > cli/build-info.json
+		"$$VERSION" "$$COMMIT" "$$BUILD_TIME" "$$DIRTY" > cmd/fragletc/build-info.json
 
 build: build-info
-	CGO_ENABLED=0 go build $(GO_BUILD_FLAGS) -o fragletc ./cli
+	CGO_ENABLED=0 go build $(GO_BUILD_FLAGS) -o fragletc ./cmd/fragletc
+
+build-entrypoint:
+	CGO_ENABLED=0 go build $(GO_BUILD_FLAGS) -o fraglet-entrypoint ./cmd/entrypoint
 
 install: build
 	@GOBIN=$$(go env GOBIN); \

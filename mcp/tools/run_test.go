@@ -107,8 +107,8 @@ func TestRun_UnsupportedLanguage(t *testing.T) {
 		t.Error("Expected error for unsupported language, got nil")
 	}
 
-	if !strings.Contains(err.Error(), "vein not found") && !strings.Contains(err.Error(), "unsupported language") {
-		t.Errorf("Expected error message about vein not found or unsupported language, got: %v", err)
+	if !strings.Contains(err.Error(), "vein not found") {
+		t.Errorf("Expected error message about vein not found, got: %v", err)
 	}
 }
 
@@ -148,7 +148,7 @@ func TestLanguageHelp_UnsupportedLanguage(t *testing.T) {
 		t.Error("Expected error for unsupported language, got nil")
 	}
 
-	if !strings.Contains(err.Error(), "unsupported language") && !strings.Contains(err.Error(), "vein not found") {
+	if !strings.Contains(err.Error(), "failed to get guide") && !strings.Contains(err.Error(), "vein not found") {
 		t.Errorf("Expected error message about unsupported language or vein not found, got: %v", err)
 	}
 }
@@ -244,7 +244,7 @@ func TestRun_WithSavePath_FailureDoesNotPersist(t *testing.T) {
 		Code: "raise SystemExit(1)",
 	}
 	_, output, err := Run(ctx, nil, input)
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "execution failed") {
 		t.Fatalf("Run: %v", err)
 	}
 	if output.ExitCode == 0 {
@@ -315,7 +315,7 @@ func TestFragletcMCP_SaveFlagParsing(t *testing.T) {
 	// Verify fragletc mcp --help documents --save (CLI parsing test)
 	root := findFragletRoot(t)
 	cmd := exec.Command("go", "run", ".", "mcp", "--help")
-	cmd.Dir = root + "/cli"
+	cmd.Dir = root + "/cmd/fragletc"
 	var out bytes.Buffer
 	cmd.Stderr = &out
 	cmd.Stdout = &out

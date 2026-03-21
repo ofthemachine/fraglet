@@ -19,8 +19,9 @@ func TestFragletcCLI(t *testing.T) {
 		BaseDirs:          []string{testDir},
 		EnvOverrideVar:    "CLI_TEST_SUITE_DIR",
 		BinaryName:        "fragletc",
-		BuildCommand:      []string{"sh", "-c", "cd " + filepath.Dir(testDir) + " && make build && cp fragletc " + testDir + "/"},
+		BuildCommand:      []string{"sh", "-c", "cd " + filepath.Dir(testDir) + " && make build && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o fraglet-entrypoint ./cmd/entrypoint"},
 		ProjectRootMarker: "go.mod",
+		CopyGlobs:         []string{"fraglet-entrypoint"},
 	}
 
 	clitest.RunSuite(t, opts)

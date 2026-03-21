@@ -5,4 +5,3 @@ injection:
 fragletTempPath: code-fragments/MAIN
 execution:
   path: code/hello-world.sh
-  makeExecutable: true

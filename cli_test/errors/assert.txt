@@ -1,5 +1,5 @@
 === Test 1: No args (should show usage) ===
-Error: no code source provided. Use a script file or -c flag.
+Error: no code source provided. Use a script file or -c flag
 
 === Test 2: Both --image and --vein (should error) ===
 Error: cannot specify both --image and --vein
@@ -8,4 +8,4 @@ Error: cannot specify both --image and --vein
 Error: vein not found: nonexistent
 
 === Test 4: No code source with vein ===
-Error: no code source provided. Use a script file or -c flag.
+Error: no code source provided. Use a script file or -c flag

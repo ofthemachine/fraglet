@@ -21,7 +21,7 @@ echo ""
 echo "=== Test 2: Range-based match ==="
 docker run --rm \
   -v /tmp/test-fraglet.sh:/FRAGLET:ro \
-  -e FRAGLET_CONFIG=/fraglet-range.yaml \
+  -e FRAGLET_MODE=range \
   fraglet-test:latest 2>&1
 
 # Test 3: Direct file replacement (no match markers)
@@ -29,7 +29,7 @@ echo ""
 echo "=== Test 3: Direct file replacement ==="
 docker run --rm \
   -v /tmp/test-fraglet-exec.sh:/FRAGLET:ro \
-  -e FRAGLET_CONFIG=/fraglet-replacement.yaml \
+  -e FRAGLET_MODE=replacement \
   fraglet-test:latest 2>&1
 
 # Test the usage command
@@ -41,7 +41,7 @@ docker run --rm fraglet-test:latest usage
 echo ""
 echo "---"
 echo "Testing usage (replacement config):"
-docker run --rm -e FRAGLET_CONFIG=/fraglet-replacement.yaml fraglet-test:latest usage
+docker run --rm -e FRAGLET_MODE=replacement fraglet-test:latest usage
 
 echo ""
 echo "---"

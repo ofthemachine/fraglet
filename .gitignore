@@ -1,7 +1,7 @@
 # Binaries
-fraglet-entrypoint
-fraglet-entrypoint-linux*
-fragletc
+**/fraglet-entrypoint
+**/fraglet-entrypoint-linux*
+**/fragletc
 
 
 *.exe

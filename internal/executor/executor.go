@@ -50,20 +50,14 @@ func (e *Executor) executeWithArgs(args []string) (int, error) {
 		// Append any additional args from command line
 		cmdArgs = append(cmdArgs, args...)
 
-		// Make executable if needed (only for the first part if it's a file path)
-		if e.cfg.Execution.ShouldMakeExecutable() {
-			// Only try to make executable if it looks like a file path (not an interpreter)
-			if len(pathParts) > 1 {
-				// If there are multiple parts, the second part is likely the file
-				if err := e.makeExecutable(pathParts[1]); err != nil {
-					return 1, err
-				}
-			} else {
-				// Single part, treat as file path
-				if err := e.makeExecutable(cmdPath); err != nil {
-					return 1, err
-				}
-			}
+		// Implicitly make executable
+		if len(pathParts) > 1 {
+			// If there are multiple parts, the second part is likely the file
+			// e.g. "python /path/to/script.py"
+			_ = e.makeExecutable(pathParts[1])
+		} else {
+			// Single part, treat as file path
+			_ = e.makeExecutable(cmdPath)
 		}
 	} else if len(args) > 0 {
 		// No execution path configured, use args as command (shift: args[0] is command, args[1:] are arguments)
@@ -89,10 +83,8 @@ func (e *Executor) executeWithArgs(args []string) (int, error) {
 	return 0, nil
 }
 
-// makeExecutable makes a file executable
+// makeExecutable makes a file executable. Errors are ignored as the path might
+// not be a local file (e.g. a command on PATH).
 func (e *Executor) makeExecutable(file string) error {
-	if err := os.Chmod(file, 0755); err != nil {
-		return fmt.Errorf("failed to make %s executable: %w", file, err)
-	}
-	return nil
+	return os.Chmod(file, 0755)
 }

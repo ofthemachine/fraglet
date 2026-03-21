@@ -1,8 +1,9 @@
 #!/bin/sh
 set -e
 
-# Build a minimal test image with fraglet-entrypoint from GitHub releases,
-# a default guide, and a mode-specific guide.
+# Build a minimal test image with locally-built fraglet-entrypoint,
+# a default guide, and a mode-specific guide (via modes: in fraglet.yml).
+# fraglet-entrypoint is provided by the test harness via CopyGlobs.
 docker build --platform linux/amd64 -t fraglet-guide-test:local -f Dockerfile . > /dev/null 2>&1
 
 # Point fragletc at our custom vein definition

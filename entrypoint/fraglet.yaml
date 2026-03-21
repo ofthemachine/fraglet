@@ -1,57 +1,58 @@
-# fraglet configuration
-# This file configures how fraglets are injected and executed within a container.
+# fraglet.yaml — Entrypoint configuration reference
+#
+# This file documents the schema for fraglet.yaml / fraglet.yml files
+# that live inside 100hellos containers. The fraglet-entrypoint binary
+# reads this config to know how to inject and execute user code.
+#
+# Place as /fraglet.yaml or /fraglet.yml in the container image.
+# Override with FRAGLET_CONFIG_PATH env var for a custom location.
 
-# Temporary location where the fraglet code is written before injection
-# The fraglet code is read from this path and injected into the target file
-#
-# *** IMPORTANT ***
-# This is the interface between the fraglet and the container, and users of
-# fraglet compatible containers must mount this path to the fraglet code.
-#
+# Where the user's code is mounted (read-only) by the host.
+# fragletc mounts the user's script here before launching the container.
 # Default: /FRAGLET
 fragletTempPath: /FRAGLET
 
-# Injection configuration: how fraglet code is inserted into the target file
+# How user code is injected into the target file inside the container.
 injection:
-  # Full path to the target file where fraglet code will be injected
-  codePath: /path/to/target-script.sh
+  # Target file that receives the injected code.
+  codePath: /hello-world/hello-world.sh
 
-  # Injection marker: the fraglet code replaces the entire line containing this string
-  # The matched line is completely replaced with the fraglet code (indentation preserved)
-  # For region-based injection, use match_start and match_end instead
+  # Single-line injection: the line containing this string is replaced
+  # with the user's code (indentation preserved).
   # Default: FRAGLET
   match: FRAGLET
 
-  # Alternative: region-based injection (both must be specified together)
-  # match_start: "# BEGIN_FRAGLET"
-  # match_end: "# END_FRAGLET"
-  # All lines from match_start through match_end (inclusive) are replaced with fraglet code
+  # Alternative: region-based injection (replaces everything between
+  # match_start and match_end, inclusive). Use instead of match.
+  # match_start: "// BEGIN_FRAGLET"
+  # match_end: "// END_FRAGLET"
 
-# Path to guide markdown file (displayed via "guide" command)
-# The file is first checked at this absolute path, then in the directory containing codePath
-# This contains authoring guidance for writing fraglets (language patterns, code format, etc.)
+  # Alternative: file replacement (omit match/match_start/match_end).
+  # The entire codePath file is replaced with the user's code.
+
+# Path to the authoring guide shown by `fraglet-entrypoint guide`.
+# Looked up at this path first, then in the directory of codePath.
 guide: /guide.md
 
-# Execution configuration: how the code is executed after injection
+# What to execute after injection.
 execution:
-  # Command/path to execute. If specified, executes: path [args...]
-  # If omitted, executes: args[0] [args[1:]...] (treats command-line args as the command)
-  #
-  # Examples:
-  #   path: /path/to/target-script.sh
-  #     → Executes: /path/to/target-script.sh [all command-line args]
-  #
-  #   path: python /path/to/script.py
-  #     → Executes: python /path/to/script.py [all command-line args]
-  #
-  #   path: (omitted)
-  #     → Executes: [first arg] [remaining args...]
-  #     → Example: entrypoint ls -la → executes: ls -la
-  path: /path/to/target-script.sh
+  # Command to run. Can be a bare path or "interpreter path" form.
+  #   path: /hello-world/hello-world.sh       → runs the script directly
+  #   path: python /hello-world/hello-world.py → runs via interpreter
+  # The file is always chmod +x'd before execution.
+  # If omitted, the entrypoint passes through CLI args as the command.
+  path: /hello-world/hello-world.sh
 
-  # Whether to make the execution path executable (default: true)
-  # Note: If executing a file directly (not via interpreter), this MUST be true
-  # or execution will fail. Set to false only when using interpreter commands
-  # like "python /path/to/script.py" or "bash /path/to/script.sh"
-  makeExecutable: true
-
+# Mode-specific overrides. Selected at runtime via FRAGLET_MODE env var.
+# Each mode can override injection, guide, and/or execution.
+# Fields not specified in a mode inherit from the root config above.
+#
+# modes:
+#   main:
+#     injection:
+#       codePath: /hello-world/Main.java
+#       match_start: "// BEGIN_FRAGLET"
+#       match_end: "// END_FRAGLET"
+#     guide: /guide-main.md
+#     execution:
+#       path: /hello-world/run-main.sh

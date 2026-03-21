@@ -5,4 +5,3 @@ injection:
   match_end: FRAGLET
 execution:
   path: /code/stdin-reader.sh
-  makeExecutable: true

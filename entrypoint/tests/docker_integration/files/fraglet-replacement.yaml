@@ -1,8 +1,0 @@
-fragletTempPath: /FRAGLET
-injection:
-  codePath: /code/hello-world-replace.sh
-guide: /guide.md
-execution:
-  path: /code/hello-world-replace.sh
-  makeExecutable: true
-

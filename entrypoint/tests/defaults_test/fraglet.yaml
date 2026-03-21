@@ -5,5 +5,3 @@ injection:
 guide: guide.md
 execution:
   path: code/hello-world.sh
-  makeExecutable: true
-

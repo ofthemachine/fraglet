@@ -11,41 +11,39 @@ import (
 // InjectionConfig is an alias for inject.Config for backward compatibility in entrypoint config
 type InjectionConfig = inject.Config
 
-// EntrypointConfig describes how to inject, store, and execute fraglets inside a container.
-type EntrypointConfig struct {
-	FragletTempPath string                     `json:"fragletTempPath" yaml:"fragletTempPath"`
-	Injection       InjectionConfig            `json:"injection" yaml:"injection"`
-	Guide           string                     `json:"guide" yaml:"guide"` // Path to guide markdown file (mode is implicit: container)
-	Execution       *EntrypointExecutionConfig `json:"execution,omitempty" yaml:"execution,omitempty"`
+// ModeConfig defines configuration for a specific execution mode
+type ModeConfig struct {
+	Injection InjectionConfig            `json:"injection" yaml:"injection"`
+	Guide     string                     `json:"guide" yaml:"guide"`
+	Execution *EntrypointExecutionConfig `json:"execution,omitempty" yaml:"execution,omitempty"`
 }
 
 // EntrypointExecutionConfig defines code execution settings
 type EntrypointExecutionConfig struct {
-	Path           string `json:"path,omitempty" yaml:"path,omitempty"`
-	MakeExecutable *bool  `json:"makeExecutable,omitempty" yaml:"makeExecutable,omitempty"`
+	Path string `json:"path,omitempty" yaml:"path,omitempty"`
 }
 
-// ShouldMakeExecutable returns whether files should be made executable, defaulting to true
-func (e *EntrypointExecutionConfig) ShouldMakeExecutable() bool {
-	if e == nil || e.MakeExecutable == nil {
-		return true
-	}
-	return *e.MakeExecutable
+// EntrypointConfig describes how to inject, store, and execute fraglets inside a container.
+type EntrypointConfig struct {
+	FragletTempPath string                `json:"fragletTempPath" yaml:"fragletTempPath"`
+	Modes           map[string]ModeConfig `json:"modes" yaml:"modes"`
+	// Embed default mode directly in the root for simplicity if no modes are defined
+	ModeConfig `yaml:",inline"`
 }
 
 // DefaultEntrypointConfig returns default config
 func DefaultEntrypointConfig() *EntrypointConfig {
-	makeExec := true
 	return &EntrypointConfig{
 		FragletTempPath: DefaultFragletTempPath,
-		Injection: InjectionConfig{
-			CodePath: DefaultCodePath,
-			Match:    DefaultFragletInjectionMatch,
-		},
-		Guide: DefaultGuidePath,
-		Execution: &EntrypointExecutionConfig{
-			Path:           DefaultCodePath,
-			MakeExecutable: &makeExec,
+		ModeConfig: ModeConfig{
+			Injection: InjectionConfig{
+				CodePath: DefaultCodePath,
+				Match:    DefaultFragletInjectionMatch,
+			},
+			Guide: DefaultGuidePath,
+			Execution: &EntrypointExecutionConfig{
+				Path: DefaultCodePath,
+			},
 		},
 	}
 }
@@ -58,56 +56,83 @@ const (
 	DefaultGuidePath             = "/guide.md"
 )
 
-// LoadEntrypointConfig loads config using mode convention:
-// - If FRAGLET_CONFIG is set, use that path
-// - Otherwise, try /fraglet.yml or /fraglet.yaml (default mode)
-// - Falls back to defaults if no config found
+// LoadEntrypointConfig loads config.
+// Priority:
+// 1. FRAGLET_CONFIG_PATH (explicit path to config file)
+// 2. /fraglet.yml or /fraglet.yaml
+// After loading, it selects the mode from FRAGLET_MODE.
 func LoadEntrypointConfig() (*EntrypointConfig, error) {
-	path := os.Getenv("FRAGLET_CONFIG")
+	path := os.Getenv("FRAGLET_CONFIG_PATH")
 	if path == "" {
-		// Default mode convention: try /fraglet.yml then /fraglet.yaml
+		// Compatibility with old env var name if new one is not set
+		path = os.Getenv("FRAGLET_CONFIG")
+	}
+
+	if path == "" {
 		for _, candidate := range []string{"/fraglet.yml", "/fraglet.yaml"} {
 			if _, err := os.Stat(candidate); err == nil {
 				path = candidate
 				break
 			}
 		}
+	}
 
-		// If still not found, return defaults
-		if path == "" {
-			return DefaultEntrypointConfig(), nil
+	var cfg *EntrypointConfig
+	if path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config: %w", err)
 		}
+		cfg = &EntrypointConfig{}
+		if err := yaml.Unmarshal(data, cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse config: %w", err)
+		}
+	} else {
+		cfg = DefaultEntrypointConfig()
 	}
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
-	}
-
-	var cfg EntrypointConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config: %w", err)
-	}
-
+	// Apply defaults to the root config
 	defaults := DefaultEntrypointConfig()
 	if cfg.FragletTempPath == "" {
 		cfg.FragletTempPath = defaults.FragletTempPath
 	}
-	if isEmptyInjection(cfg.Injection) {
-		cfg.Injection = defaults.Injection
-	} else if cfg.Injection.CodePath == "" {
-		cfg.Injection.CodePath = defaults.Injection.CodePath
-	}
-	if cfg.Guide == "" {
-		cfg.Guide = defaults.Guide
-	}
-	if cfg.Execution == nil {
-		cfg.Execution = defaults.Execution
-	} else if cfg.Execution.MakeExecutable == nil {
-		cfg.Execution.MakeExecutable = defaults.Execution.MakeExecutable
+	cfg.ModeConfig = mergeModeConfig(cfg.ModeConfig, defaults.ModeConfig)
+
+	// Resolve mode
+	mode := os.Getenv("FRAGLET_MODE")
+	if mode != "" {
+		if modeCfg, ok := cfg.Modes[mode]; ok {
+			// Override root config with mode-specific config
+			cfg.ModeConfig = mergeModeConfig(modeCfg, cfg.ModeConfig)
+		} else {
+			// If mode not found in map, it might be that FRAGLET_CONFIG pointed to a mode-specific file
+			// like /fraglet-main.yml in the old system. We've already loaded it into the root.
+			// But for strictness, we could warn or error.
+			// Given "collapse into single fraglet.yml", we assume the user might still pass the mode name.
+		}
 	}
 
-	return &cfg, nil
+	return cfg, nil
+}
+
+func mergeModeConfig(target, source ModeConfig) ModeConfig {
+	if isEmptyInjection(target.Injection) {
+		target.Injection = source.Injection
+	} else if target.Injection.CodePath == "" {
+		target.Injection.CodePath = source.Injection.CodePath
+	}
+
+	if target.Guide == "" {
+		target.Guide = source.Guide
+	}
+
+	if target.Execution == nil {
+		target.Execution = source.Execution
+	} else if target.Execution.Path == "" && source.Execution != nil {
+		target.Execution.Path = source.Execution.Path
+	}
+
+	return target
 }
 
 // isLineInjection returns true when a single-line marker should be replaced.

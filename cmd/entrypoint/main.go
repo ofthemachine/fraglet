@@ -8,14 +8,14 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/ofthemachine/fraglet/entrypoint/internal/executor"
-	"github.com/ofthemachine/fraglet/entrypoint/internal/fraglet"
-	"github.com/ofthemachine/fraglet/entrypoint/internal/params"
+	"github.com/ofthemachine/fraglet/internal/entrypoint"
+	"github.com/ofthemachine/fraglet/internal/entrypoint/params"
+	"github.com/ofthemachine/fraglet/internal/executor"
 	fragletpkg "github.com/ofthemachine/fraglet/pkg/fraglet"
 )
 
 func main() {
-	// Load configuration (respects FRAGLET_CONFIG envvar)
+	// Load configuration (respects FRAGLET_MODE and FRAGLET_CONFIG_PATH)
 	cfg, err := fragletpkg.LoadEntrypointConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
@@ -35,9 +35,6 @@ func main() {
 	}
 
 	// Coerce FRAGLET_PARAM_* env vars into bare env vars.
-	// The entrypoint is dumb: it strips the prefix and passes values through.
-	// This does **not** clobber existing env vars.
-	// Decoding (b64, cb64) already happened caller-side in fragletc.
 	coerced, err := params.Coerce()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error coercing params: %v\n", err)
@@ -48,7 +45,7 @@ func main() {
 	}
 
 	// Process fraglet injection
-	fragletMgr := fraglet.NewManager(cfg)
+	fragletMgr := entrypoint.NewManager(cfg)
 	if err := fragletMgr.Process(); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
@@ -128,7 +125,10 @@ func generateUsage(cfg *fragletpkg.EntrypointConfig) string {
 	markerDisplay := markerDisplay(cfg.Injection)
 
 	// Determine execution path
-	execPath := cfg.Execution.Path
+	execPath := ""
+	if cfg.Execution != nil {
+		execPath = cfg.Execution.Path
+	}
 	if execPath == "" {
 		execPath = "<command from args>"
 	}

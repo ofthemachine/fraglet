@@ -1,4 +1,4 @@
-package fraglet
+package entrypoint
 
 import (
 	"fmt"
@@ -74,7 +74,7 @@ func copyFile(src, dst string) error {
 
 	// Copy contents
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		dstFile.Close()
+		_ = dstFile.Close()
 		return fmt.Errorf("failed to copy file contents: %w", err)
 	}
 

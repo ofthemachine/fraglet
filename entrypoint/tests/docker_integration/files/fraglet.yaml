@@ -5,5 +5,19 @@ injection:
 guide: /guide.md
 execution:
   path: /code/hello-world.sh
-  makeExecutable: true
 
+modes:
+  range:
+    injection:
+      codePath: /code/hello-world-range.sh
+      match_start: START
+      match_end: END
+    guide: /guide.md
+    execution:
+      path: /code/hello-world-range.sh
+  replacement:
+    injection:
+      codePath: /code/hello-world-replace.sh
+    guide: /guide.md
+    execution:
+      path: /code/hello-world-replace.sh

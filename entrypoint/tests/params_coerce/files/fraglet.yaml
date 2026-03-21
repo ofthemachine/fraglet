@@ -4,4 +4,3 @@ injection:
   match: FRAGLET
 execution:
   path: /code/printer.sh
-  makeExecutable: true

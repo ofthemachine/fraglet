@@ -28,6 +28,7 @@ const runToolDescriptionBase = "Execute code snippets for code-based reasoning, 
 	"Each language has specific requirements about code format (e.g., complete programs vs. code fragments, required structure, etc.) " +
 	"that you must follow. " +
 	"A fraglet is an executable code file that runs in a containerized sandbox. When writing fraglets to disk, use the shebang #!/usr/bin/env -S fragletc --vein=<lang> where <lang> matches the lang parameter. Files with this shebang are directly executable via ./filename. " +
+	"Parameters are passed as env vars FRAGLET_PARAM_<NAME>. The code can access these via OS env APIs. " +
 	"Optional: mode and annotations (key:value tokens, e.g. determinism:deterministic, math:number-theory)."
 
 func init() {
@@ -103,10 +104,10 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 	img := v.ContainerImage()
 	r := runner.NewRunner(img, "")
 
-	// Build env: optional FRAGLET_CONFIG when mode is set
+	// Build env: optional FRAGLET_MODE when mode is set
 	var envVars []string
 	if input.Mode != "" {
-		envVars = append(envVars, fmt.Sprintf("FRAGLET_CONFIG=/fraglet-%s.yml", input.Mode))
+		envVars = append(envVars, fmt.Sprintf("FRAGLET_MODE=%s", input.Mode))
 	}
 
 	// Parse and resolve params
@@ -143,7 +144,6 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 			{
 				HostPath:      tmpFile,
 				ContainerPath: "/FRAGLET",
-				// Writable: false (default) = read-only mount
 			},
 		},
 	}
@@ -162,7 +162,7 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 	if result.ExitCode == 0 {
 		if saveRoot := getRunSavePath(); saveRoot != "" {
 			imageWithDigest, _ := vein.ResolveImageDigest(runCtx, img)
-			saver := &save.LocalSave{Root: saveRoot}
+			saver := save.NewLocalSave(saveRoot)
 			_ = saver.Save(runCtx, input.Lang, imageWithDigest, input.Mode, input.Annotations, input.Code)
 		}
 	}
@@ -189,9 +189,9 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 	}
 
 	// Add execution metadata
-	status := "✅ Success"
+	status := "Success"
 	if result.ExitCode != 0 {
-		status = fmt.Sprintf("❌ Failed (exit code: %d)", result.ExitCode)
+		status = fmt.Sprintf("Failed (exit code: %d)", result.ExitCode)
 	}
 	contentParts = append(contentParts, fmt.Sprintf("**Status:** %s | **Duration:** %s", status, result.Duration.Round(time.Millisecond)))
 
@@ -200,6 +200,9 @@ func Run(ctx context.Context, req *mcp.CallToolRequest, input RunInput) (
 	codeBlock := fmt.Sprintf("%s%s\n%s\n%s", codeFence, input.Lang, input.Code, codeFence)
 	formattedContent := fmt.Sprintf("**Code executed in `%s`:**\n\n%s\n\n%s",
 		input.Lang, codeBlock, strings.Join(contentParts, "\n\n"))
+
+	// Log execution to server stderr for client visibility
+	fmt.Fprintf(os.Stderr, "[mcp] run lang=%s mode=%s exit=%d duration=%s\n", input.Lang, input.Mode, result.ExitCode, result.Duration)
 
 	return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -228,10 +231,10 @@ func writeTempFile(content string) (string, func(), error) {
 	}
 
 	tmpFile.Close()
-	os.Chmod(tmpFile.Name(), 0644)
+	_ = os.Chmod(tmpFile.Name(), 0644)
 
 	absPath, _ := filepath.Abs(tmpFile.Name())
-	cleanup := func() { os.Remove(absPath) }
+	cleanup := func() { _ = os.Remove(absPath) }
 
 	return absPath, cleanup, nil
 }

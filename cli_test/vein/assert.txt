@@ -8,7 +8,7 @@ Short vein flag!
 File with vein!
 
 === Test 4: Vein with mode syntax (validates parsing) ===
-Mode syntax accepted (error expected if mode not supported)
+Mode syntax accepted
 
 === Test 5: Extension inference ===
 Inferred from extension!

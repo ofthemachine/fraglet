@@ -23,6 +23,7 @@ type Options struct {
 	ProjectRootMarker string   // e.g. "go.mod"
 	DefaultPatterns   map[string]string
 	Environment       map[string]string // Additional environment variables to set
+	CopyGlobs         []string          // Glob patterns (relative to project root) to copy into each test's temp dir
 }
 
 type Result struct {
@@ -66,7 +67,7 @@ func RunSuite(t *testing.T, opts Options) Result {
 		opts.DefaultPatterns = defaultPatterns
 	}
 
-	binPath := buildOnce(t, opts)
+	buildOnce(t, opts)
 
 	// Allow single dir override
 	if override := os.Getenv(opts.EnvOverrideVar); override != "" {
@@ -111,12 +112,23 @@ func RunSuite(t *testing.T, opts Options) Result {
 				t.Fatalf("copy test directory contents: %v", err)
 			}
 
-			// place binary
-			localBin := filepath.Join(tempDir, opts.BinaryName)
-			if err := copyFile(binPath, localBin); err != nil {
-				t.Fatalf("copy binary: %v", err)
+			// Copy built artifacts into temp dir.
+			// BinaryName is always included; CopyGlobs adds additional files.
+			allGlobs := append([]string{opts.BinaryName}, opts.CopyGlobs...)
+			for _, pattern := range allGlobs {
+				absPattern := filepath.Join(projectRoot, pattern)
+				matches, err := filepath.Glob(absPattern)
+				if err != nil {
+					t.Fatalf("invalid copy glob %q: %v", pattern, err)
+				}
+				for _, match := range matches {
+					dst := filepath.Join(tempDir, filepath.Base(match))
+					if err := copyFile(match, dst); err != nil {
+						t.Fatalf("copy %s: %v", match, err)
+					}
+					_ = os.Chmod(dst, 0755)
+				}
 			}
-			_ = os.Chmod(localBin, 0755)
 
 			// act
 			stdout, stderr, exitCode, actErr := runActScript(t, tempDir, tc.ActScript, opts.Environment)
@@ -153,7 +165,7 @@ func findProjectRoot(startPath string, marker string) (string, error) {
 	}
 }
 
-func buildOnce(t *testing.T, opts Options) string {
+func buildOnce(t *testing.T, opts Options) {
 	if projectRoot == "" {
 		_, file, _, ok := runtime.Caller(0)
 		if !ok {
@@ -167,7 +179,7 @@ func buildOnce(t *testing.T, opts Options) string {
 		t.Logf("Project root: %s", projectRoot)
 	}
 	if builtOnce {
-		return filepath.Join(projectRoot, opts.BinaryName)
+		return
 	}
 	cmd := exec.Command(opts.BuildCommand[0], opts.BuildCommand[1:]...)
 	cmd.Dir = projectRoot
@@ -177,7 +189,6 @@ func buildOnce(t *testing.T, opts Options) string {
 		t.Fatalf("%s", buildErr.Error())
 	}
 	builtOnce = true
-	return filepath.Join(projectRoot, opts.BinaryName)
 }
 
 func discoverTestCases(baseDirs []string) ([]CLITestCase, error) {
