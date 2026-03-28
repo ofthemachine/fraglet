@@ -22,7 +22,9 @@ jobs:
           go-version-file: 'go.mod'
 
       - name: Run tests
-        run: go test ./...
+        run: |
+          make build-info
+          go test ./...
 
       - name: Build multi-arch binaries
         run: |
