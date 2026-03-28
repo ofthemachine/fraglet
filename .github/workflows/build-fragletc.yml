@@ -3,14 +3,14 @@ name: 🚀 Build fragletc
 on:
   push:
     paths:
-      - 'cli/**'
+      - 'cmd/fragletc/**'
       - 'mcp/**'
       - 'pkg/**'
       - 'go.mod'
       - 'go.sum'
   pull_request:
     paths:
-      - 'cli/**'
+      - 'cmd/fragletc/**'
       - 'mcp/**'
       - 'pkg/**'
       - 'go.mod'

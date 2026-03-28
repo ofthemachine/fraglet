@@ -3,16 +3,21 @@ name: 🚀 Build fraglet-entrypoint
 on:
   push:
     paths:
-      - 'entrypoint/**'
+      - 'cmd/entrypoint/**'
+      - 'internal/entrypoint/**'
+      - 'internal/executor/**'
+      - 'pkg/fraglet/**'
+      - 'pkg/inject/**'
   pull_request:
     paths:
-      - 'entrypoint/**'
+      - 'cmd/entrypoint/**'
+      - 'internal/entrypoint/**'
+      - 'internal/executor/**'
+      - 'pkg/fraglet/**'
+      - 'pkg/inject/**'
   workflow_dispatch:
 
 jobs:
   build:
     name: 🛠 Build fraglet-entrypoint
     uses: ./.github/workflows/build-entrypoint-reusable.yml
-
-
-

@@ -6,4 +6,4 @@ HELLO
 
 === Test: Argument passing ===
 Args: foo bar baz
-# REGEX: .*autorelease called without pool.*
+{{any:.*autorelease called without pool.*}}

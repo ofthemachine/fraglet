@@ -9,6 +9,8 @@
 # -s -w: strip symbol table and DWARF (smaller binary, matches CI)
 GO_BUILD_FLAGS = -trimpath -buildvcs=false -ldflags="-s -w"
 
+CLITEST_PROGRESS ?= $(if $(CI),0,1)
+
 build-info:
 	@VERSION=$$(ls cmd/fragletc/releases/*.md 2>/dev/null | xargs -I{} basename {} .md | sort -V | tail -1); \
 	[ -z "$$VERSION" ] && VERSION="dev"; \
@@ -33,13 +35,14 @@ test:
 	go test ./...
 
 test-entrypoint:
-	cd entrypoint && go test -tags=integration -v ./tests/...
+	CLITEST_PROGRESS=$(CLITEST_PROGRESS) cd cmd/entrypoint && go test -tags=integration -v ./tests/...
 
+# Slow/heavy target; prefer test-entrypoint or test-cli for quick clitest feedback.
 test-veins:
 	cd veins_test && go test -tags=integration -v .
 
 test-cli: build-info
-	cd cli_test && go test -tags=integration -v .
+	CLITEST_PROGRESS=$(CLITEST_PROGRESS) cd cli_test && go test -tags=integration -v .
 
 # Run 100hellos fraglet verify.sh for a language. Requires HELLOS_ROOT (default: $HOME/repos/100hellos).
 # Usage: make verify-100hellos LANGUAGE=ats

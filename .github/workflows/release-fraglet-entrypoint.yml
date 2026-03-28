@@ -2,8 +2,10 @@ name: 🚀 Release fraglet-entrypoint
 
 on:
   push:
+    branches:
+      - main
     paths:
-      - 'entrypoint/releases/**'
+      - 'cmd/entrypoint/releases/**'
   workflow_dispatch:
 
 permissions:
@@ -23,13 +25,12 @@ jobs:
       - name: Get version from release file
         id: version
         run: |
-          # Latest release = highest version by semver (sort -V), not lexicographic
-          LATEST_VERSION=$(find entrypoint/releases/ -name "*.md" -type f -exec basename {} .md \; | sort -V | tail -n1)
+          LATEST_VERSION=$(find cmd/entrypoint/releases/ -name "*.md" -type f -exec basename {} .md \; | sort -V | tail -n1)
           if [ -z "$LATEST_VERSION" ]; then
-            echo "No release file found"
+            echo "No release file found in cmd/entrypoint/releases/"
             exit 1
           fi
-          RELEASE_FILE="entrypoint/releases/${LATEST_VERSION}.md"
+          RELEASE_FILE="cmd/entrypoint/releases/${LATEST_VERSION}.md"
 
           echo "version=${LATEST_VERSION}" >> $GITHUB_OUTPUT
           echo "release_file=${RELEASE_FILE}" >> $GITHUB_OUTPUT
@@ -59,19 +60,13 @@ jobs:
           path: .
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Move binaries to root
-        run: |
-          mv entrypoint/fraglet-entrypoint-* . || true
-          mv entrypoint/checksums.txt . || true
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe
         with:
-          tag_name: ${{ needs.get-version.outputs.version }}
+          tag_name: entrypoint-${{ needs.get-version.outputs.version }}
           name: fraglet-entrypoint ${{ needs.get-version.outputs.version }}
           body_path: ${{ needs.get-version.outputs.release_file }}
           files: |
             fraglet-entrypoint-*
             checksums.txt
           make_latest: false
-

@@ -116,7 +116,7 @@ make install
 Or directly:
 
 ```sh
-go install github.com/ofthemachine/fraglet/cli@latest
+go install github.com/ofthemachine/fraglet/cmd/fragletc@latest
 ```
 
 ## Troubleshooting

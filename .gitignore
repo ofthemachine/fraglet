@@ -1,7 +1,9 @@
-# Binaries
-**/fraglet-entrypoint
-**/fraglet-entrypoint-linux*
-**/fragletc
+# Binaries (built by make / go build / test harness)
+fragletc
+!cmd/fragletc/
+fraglet-entrypoint
+!cmd/entrypoint/
+fraglet-entrypoint-linux*
 
 
 *.exe

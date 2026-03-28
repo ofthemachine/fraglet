@@ -10,7 +10,7 @@ host=localhost
 
 === Test 4: No-shadow (HOME already exists) ===
 # HOME is set by the OS, so the injected value should be ignored
-# REGEX: home=/.*
+home={{path}}
 
 === Test 5: Transport var cleaned after coercion ===
 city=tokyo

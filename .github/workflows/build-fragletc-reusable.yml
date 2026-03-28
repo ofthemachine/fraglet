@@ -20,7 +20,7 @@ jobs:
         run: |
           make build-info
           echo "Embedded build info:"
-          cat cli/build-info.json
+          cat cmd/fragletc/build-info.json
 
       - name: Run tests
         run: go test ./...
@@ -38,7 +38,7 @@ jobs:
             echo "Building ${PLATFORM_NAME}..."
             CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" go build \
               -trimpath -buildvcs=false -ldflags="-s -w" \
-              -o "${OUT}" ./cli
+              -o "${OUT}" ./cmd/fragletc
 
             sha256sum "${OUT}" > "${OUT}.sha256"
           done
@@ -46,7 +46,7 @@ jobs:
           sha256sum fragletc-* | grep -v "\.sha256" > checksums.txt
 
       - name: Save build-info.json for reproducibility
-        run: cp cli/build-info.json build-info.json
+        run: cp cmd/fragletc/build-info.json build-info.json
 
       - name: Upload binaries as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

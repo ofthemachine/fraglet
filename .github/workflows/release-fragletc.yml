@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'cli/releases/**'
+      - 'cmd/fragletc/releases/**'
   workflow_dispatch:
 
 permissions:
@@ -26,12 +26,12 @@ jobs:
         id: version
         run: |
           # Latest release = highest version by semver (sort -V), not lexicographic
-          LATEST_VERSION=$(find cli/releases/ -name "*.md" -type f 2>/dev/null -exec basename {} .md \; | sort -V | tail -n1)
+          LATEST_VERSION=$(find cmd/fragletc/releases/ -name "*.md" -type f 2>/dev/null -exec basename {} .md \; | sort -V | tail -n1)
           if [ -z "$LATEST_VERSION" ]; then
-            echo "No release file found in cli/releases/. Add e.g. cli/releases/v0.1.0.md"
+            echo "No release file found in cmd/fragletc/releases/. Add e.g. cmd/fragletc/releases/v0.1.0.md"
             exit 1
           fi
-          RELEASE_FILE="cli/releases/${LATEST_VERSION}.md"
+          RELEASE_FILE="cmd/fragletc/releases/${LATEST_VERSION}.md"
 
           echo "version=${LATEST_VERSION}" >> $GITHUB_OUTPUT
           echo "release_file=${RELEASE_FILE}" >> $GITHUB_OUTPUT
