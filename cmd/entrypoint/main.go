@@ -31,6 +31,10 @@ func main() {
 		case "guide":
 			showDocumentation(cfg, cfg.Guide, "")
 			return
+		case "essence":
+			// Same resolution and missing-file behavior as `guide` (silent when absent).
+			showDocumentation(cfg, cfg.Essence, "")
+			return
 		}
 	}
 
@@ -67,22 +71,29 @@ func main() {
 	os.Exit(exitCode)
 }
 
-func showDocumentation(cfg *fragletpkg.EntrypointConfig, configuredPath, notFoundMsg string) {
-	// Try configured path first
-	if data, err := os.ReadFile(configuredPath); err == nil {
-		fmt.Print(string(data))
-		return
+// readDocumentationFile resolves configuredPath like the guide: absolute path first,
+// then basename next to injection.codePath.
+func readDocumentationFile(cfg *fragletpkg.EntrypointConfig, configuredPath string) ([]byte, error) {
+	if configuredPath == "" {
+		return nil, os.ErrNotExist
 	}
-
-	// Try in code directory using the filename from configured path
+	if data, err := os.ReadFile(configuredPath); err == nil {
+		return data, nil
+	}
 	filename := filepath.Base(configuredPath)
 	codeDir := filepath.Dir(cfg.Injection.CodePath)
 	codePath := filepath.Join(codeDir, filename)
 	if data, err := os.ReadFile(codePath); err == nil {
+		return data, nil
+	}
+	return nil, os.ErrNotExist
+}
+
+func showDocumentation(cfg *fragletpkg.EntrypointConfig, configuredPath, notFoundMsg string) {
+	if data, err := readDocumentationFile(cfg, configuredPath); err == nil {
 		fmt.Print(string(data))
 		return
 	}
-
 	if notFoundMsg != "" {
 		fmt.Println(notFoundMsg)
 	}
@@ -110,7 +121,8 @@ const usageTemplate = "# Container Usage\n\n" +
 	"```\n\n" +
 	"## Documentation\n\n" +
 	"- `usage` - Container usage (this document)\n" +
-	"- `guide` - Authoring guide for writing fraglets\n"
+	"- `guide` - Authoring guide for writing fraglets\n" +
+	"- `essence` - Short capability summary for this mode (token-dense)\n"
 
 type usageData struct {
 	FragletTempPath string

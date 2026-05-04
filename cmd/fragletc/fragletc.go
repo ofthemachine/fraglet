@@ -12,9 +12,10 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/ofthemachine/fraglet/pkg/engine"
 	"github.com/ofthemachine/fraglet/mcp/tools"
 	"github.com/ofthemachine/fraglet/pkg/embed"
+	"github.com/ofthemachine/fraglet/pkg/engine"
+	"github.com/ofthemachine/fraglet/pkg/essence"
 	"github.com/ofthemachine/fraglet/pkg/fraglet"
 	"github.com/ofthemachine/fraglet/pkg/guide"
 	"github.com/ofthemachine/fraglet/pkg/vein"
@@ -40,6 +41,9 @@ func main() {
 			return
 		case "guide":
 			handleGuide()
+			return
+		case "essence":
+			handleEssence()
 			return
 		case "mcp":
 			handleMCP()
@@ -394,6 +398,59 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 	os.Exit(result.ExitCode)
 }
 
+func handleEssence() {
+	essenceFlags := flag.NewFlagSet("essence", flag.ExitOnError)
+	mode := essenceFlags.String("mode", "", "Fraglet mode (sets FRAGLET_MODE=mode)")
+	essenceFlags.StringVar(mode, "m", "", "Fraglet mode (short form)")
+	essenceFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, `Usage: fragletc essence [options] <vein-name>
+
+Show the fraglet essence (short capability summary) for a specific vein.
+
+Options:
+  -m, --mode string
+        Fraglet mode (sets FRAGLET_MODE=mode)
+
+Examples:
+  fragletc essence ada                    # Show essence for ada vein
+  fragletc essence python                 # Show essence for python vein
+  fragletc essence ada --mode main        # Show essence for ada vein with main mode
+
+The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
+`)
+	}
+
+	essenceFlags.Parse(reorderArgs(os.Args[2:]))
+	args := essenceFlags.Args()
+
+	if len(args) == 0 {
+		essenceFlags.Usage()
+		os.Exit(1)
+	}
+
+	veinName := args[0]
+
+	registry, err := vein.LoadAuto(embed.LoadEmbeddedVeins)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading veins: %v\n", err)
+		os.Exit(1)
+	}
+
+	result, err := essence.Run(context.Background(), registry, veinName, *mode)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error running essence: %v\n", err)
+		os.Exit(1)
+	}
+
+	if result.Stderr != "" {
+		fmt.Fprint(os.Stderr, result.Stderr)
+	}
+	if result.Stdout != "" {
+		fmt.Print(result.Stdout)
+	}
+	os.Exit(result.ExitCode)
+}
+
 func handleMCP() {
 	mcpFlags := flag.NewFlagSet("mcp", flag.ExitOnError)
 	savePath := mcpFlags.String("save", "", "Directory to persist successfully run fraglets (content-addressed); optional")
@@ -500,6 +557,8 @@ Subcommands:
                 Use "fragletc refresh --help" for details
   guide         Show fraglet guide for a vein
                 Use "fragletc guide --help" for details
+  essence       Show fraglet essence (short capability summary) for a vein
+                Use "fragletc essence --help" for details
   version       Show build version, commit, and lineage info
 `)
 }

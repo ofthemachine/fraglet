@@ -49,6 +49,7 @@ docker run --rm -v /tmp/fraglet.sh:/FRAGLET:ro <container>
 
 - `usage` - Container usage (this document)
 - `guide` - Authoring guide for writing fraglets
+- `essence` - Short capability summary for this mode (token-dense)
 
 ---
 Testing usage (replacement config):
@@ -90,6 +91,7 @@ docker run --rm -v /tmp/fraglet.sh:/FRAGLET:ro <container>
 
 - `usage` - Container usage (this document)
 - `guide` - Authoring guide for writing fraglets
+- `essence` - Short capability summary for this mode (token-dense)
 ---
 Testing guide:
 # Alpine Fraglet Help
@@ -105,3 +107,9 @@ The fraglet will be injected at the `FRAGLET` marker in `/code/hello-world.sh`.
 ```bash
 docker run -v /path/to/fraglet:/FRAGLET myimage
 ```
+---
+Testing essence:
+Token-dense essence for default mode.
+
+---
+Testing essence (missing file for mode):

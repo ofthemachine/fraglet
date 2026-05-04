@@ -13,6 +13,7 @@ Usage:
 Examples:
   ./verify-release.sh fragletc-v0.6.0
   ./verify-release.sh entrypoint-v0.5.0
+  ./verify-release.sh entrypoint-v0.6.0
 
 Runs the build inside a golang Docker container matching the Go version
 in go.mod at the tagged ref. Outputs sha256 checksums for all built

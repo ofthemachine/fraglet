@@ -38,6 +38,9 @@ docker run --rm -v /tmp/fraglet.sh:/FRAGLET:ro <container>
 
 - `usage` - Container usage (this document)
 - `guide` - Authoring guide for writing fraglets
+- `essence` - Short capability summary for this mode (token-dense)
 ---
 # Default Agent Help
 
+
+---

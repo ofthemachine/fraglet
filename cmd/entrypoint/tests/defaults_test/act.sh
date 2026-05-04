@@ -17,3 +17,7 @@ echo "---"
 docker run --rm --platform linux/amd64 \
   -v "$(pwd):/work" -e FRAGLET_CONFIG=/work/fraglet.yaml \
   alpine:latest /work/fraglet-entrypoint guide
+echo "---"
+docker run --rm --platform linux/amd64 \
+  -v "$(pwd):/work" -e FRAGLET_CONFIG=/work/fraglet.yaml \
+  alpine:latest /work/fraglet-entrypoint essence 2>&1

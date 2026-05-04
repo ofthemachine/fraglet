@@ -6,6 +6,7 @@ run() { docker run --rm --platform linux/amd64 -v "$(pwd):/work" -w /work -e FRA
 
 run usage
 run guide
+run essence 2>&1
 
 rm -f fraglet/guide.md
 run guide

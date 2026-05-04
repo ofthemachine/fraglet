@@ -34,6 +34,7 @@ docker run --rm -v /tmp/fraglet.sh:/code-fragments/MAIN:ro <container>
 
 - `usage` - Container usage (this document)
 - `guide` - Authoring guide for writing fraglets
+- `essence` - Short capability summary for this mode (token-dense)
 # Agent Help
 
 This is the agent help documentation.

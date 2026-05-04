@@ -48,5 +48,15 @@ echo "---"
 echo "Testing guide:"
 docker run --rm fraglet-test:latest guide
 
+echo ""
+echo "---"
+echo "Testing essence:"
+docker run --rm fraglet-test:latest essence
+
+echo ""
+echo "---"
+echo "Testing essence (missing file for mode):"
+docker run --rm -e FRAGLET_MODE=noessence fraglet-test:latest essence 2>&1
+
 # Cleanup
 docker rmi fraglet-test:latest > /dev/null 2>&1 || true

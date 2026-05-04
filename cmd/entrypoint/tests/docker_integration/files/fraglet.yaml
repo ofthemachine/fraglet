@@ -3,10 +3,13 @@ injection:
   codePath: /code/hello-world.sh
   match: FRAGLET
 guide: /guide.md
+essence: /essence.md
 execution:
   path: /code/hello-world.sh
 
 modes:
+  noessence:
+    essence: /this-essence-file-is-missing.md
   range:
     injection:
       codePath: /code/hello-world-range.sh

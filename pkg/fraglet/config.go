@@ -15,6 +15,7 @@ type InjectionConfig = inject.Config
 type ModeConfig struct {
 	Injection InjectionConfig            `json:"injection" yaml:"injection"`
 	Guide     string                     `json:"guide" yaml:"guide"`
+	Essence   string                     `json:"essence,omitempty" yaml:"essence,omitempty"`
 	Execution *EntrypointExecutionConfig `json:"execution,omitempty" yaml:"execution,omitempty"`
 }
 
@@ -124,6 +125,10 @@ func mergeModeConfig(target, source ModeConfig) ModeConfig {
 
 	if target.Guide == "" {
 		target.Guide = source.Guide
+	}
+
+	if target.Essence == "" {
+		target.Essence = source.Essence
 	}
 
 	if target.Execution == nil {

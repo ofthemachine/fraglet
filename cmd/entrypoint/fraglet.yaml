@@ -34,6 +34,12 @@ injection:
 # Looked up at this path first, then in the directory of codePath.
 guide: /guide.md
 
+# Optional: short, token-dense capability summary for this mode.
+# Shown by `fraglet-entrypoint essence` and `fragletc essence <vein>`.
+# Same path resolution and missing-file behavior as `guide` (no output if absent;
+# exit 0). Does not use the guide.
+# essence: /essence.md
+
 # What to execute after injection.
 execution:
   # Command to run. Can be a bare path or "interpreter path" form.
@@ -44,7 +50,7 @@ execution:
   path: /hello-world/hello-world.sh
 
 # Mode-specific overrides. Selected at runtime via FRAGLET_MODE env var.
-# Each mode can override injection, guide, and/or execution.
+# Each mode can override injection, guide, essence, and/or execution.
 # Fields not specified in a mode inherit from the root config above.
 #
 # modes:
@@ -54,5 +60,6 @@ execution:
 #       match_start: "// BEGIN_FRAGLET"
 #       match_end: "// END_FRAGLET"
 #     guide: /guide-main.md
+#     essence: /essence-main.md
 #     execution:
 #       path: /hello-world/run-main.sh
