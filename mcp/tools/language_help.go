@@ -38,7 +38,7 @@ func LanguageHelp(ctx context.Context, req *mcp.CallToolRequest, input LanguageH
 		return nil, LanguageHelpOutput{}, fmt.Errorf("failed to load veins: %w", err)
 	}
 
-	result, err := guide.Run(ctx, registry, input.Lang, input.Mode)
+	result, err := guide.Run(ctx, registry, input.Lang, input.Mode, "")
 	if err != nil {
 		return nil, LanguageHelpOutput{}, fmt.Errorf("failed to get guide for %s: %w", input.Lang, err)
 	}

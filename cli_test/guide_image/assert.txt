@@ -1,0 +1,24 @@
+=== guide: --image flag (no vein) ===
+Guide: default mode
+
+=== guide: --mode and --image any order ===
+Guide: testmode active
+Guide: testmode active
+
+=== guide: -i short form ===
+Guide: default mode
+
+=== guide: --mode after -i ===
+Guide: testmode active
+
+=== essence: -i only ===
+Essence: default mode
+
+=== essence: --mode and --image any order ===
+Essence: testmode active
+
+=== vein-only still works ===
+Guide: default mode
+
+=== XOR: vein + --image must fail ===
+Error running guide: cannot specify vein name together with --image

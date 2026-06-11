@@ -32,6 +32,87 @@ func (e *envListFlag) Set(val string) error {
 	return nil
 }
 
+// guideEssenceOpts holds parsed arguments for guide and essence subcommands.
+// VeinName and Image are mutually exclusive at validation time (see pkg/guide Run).
+type guideEssenceOpts struct {
+	VeinName string
+	Image    string
+	Mode     string
+}
+
+var errGuideEssenceUsage = errors.New("show usage")
+
+func parseGuideEssenceArgs(args []string) (guideEssenceOpts, error) {
+	var o guideEssenceOpts
+	var pos []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			pos = append(pos, args[i+1:]...)
+			break
+		}
+		if strings.HasPrefix(a, "-") {
+			switch {
+			case a == "-h" || a == "--help":
+				return guideEssenceOpts{}, errGuideEssenceUsage
+
+			case a == "-i" || a == "--image":
+				if o.Image != "" {
+					return guideEssenceOpts{}, fmt.Errorf("duplicate --image")
+				}
+				i++
+				if i >= len(args) {
+					return guideEssenceOpts{}, fmt.Errorf("-i/--image requires a value")
+				}
+				o.Image = args[i]
+				if o.Image == "" {
+					return guideEssenceOpts{}, fmt.Errorf("-i/--image requires a non-empty value")
+				}
+
+			case strings.HasPrefix(a, "--image="):
+				if o.Image != "" {
+					return guideEssenceOpts{}, fmt.Errorf("duplicate --image")
+				}
+				o.Image = strings.TrimPrefix(a, "--image=")
+				if o.Image == "" {
+					return guideEssenceOpts{}, fmt.Errorf("--image requires a non-empty value")
+				}
+
+			case a == "-m" || a == "--mode":
+				if o.Mode != "" {
+					return guideEssenceOpts{}, fmt.Errorf("duplicate --mode")
+				}
+				i++
+				if i >= len(args) {
+					return guideEssenceOpts{}, fmt.Errorf("-m/--mode requires a value")
+				}
+				o.Mode = args[i]
+
+			case strings.HasPrefix(a, "--mode="):
+				if o.Mode != "" {
+					return guideEssenceOpts{}, fmt.Errorf("duplicate --mode")
+				}
+				o.Mode = strings.TrimPrefix(a, "--mode=")
+
+			default:
+				return guideEssenceOpts{}, fmt.Errorf("unknown flag %q", a)
+			}
+			continue
+		}
+		pos = append(pos, a)
+	}
+
+	switch len(pos) {
+	case 0:
+	case 1:
+		o.VeinName = pos[0]
+	default:
+		return guideEssenceOpts{}, fmt.Errorf("unexpected arguments after vein name: %q", strings.Join(pos[1:], " "))
+	}
+
+	return o, nil
+}
+
 func main() {
 	// Subcommands are checked before flag parsing
 	if len(os.Args) > 1 {
@@ -345,45 +426,56 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 	}
 }
 
-func handleGuide() {
-	guideFlags := flag.NewFlagSet("guide", flag.ExitOnError)
-	mode := guideFlags.String("mode", "", "Fraglet mode (sets FRAGLET_MODE=mode)")
-	guideFlags.StringVar(mode, "m", "", "Fraglet mode (short form)")
-	guideFlags.Usage = func() {
-		fmt.Fprintf(os.Stderr, `Usage: fragletc guide [options] <vein-name>
+func printGuideUsage() {
+	fmt.Fprintf(os.Stderr, `Usage:
+  fragletc guide [options and vein/image in any order]
 
-Show the fraglet guide for a specific vein.
+  Resolve image from vein registry: provide exactly one vein name as a positional argument.
+  Use image directly: pass -i or --image (no vein name).
+
+Show the fraglet guide from the container's configured guide path.
 
 Options:
-  -m, --mode string
-        Fraglet mode (sets FRAGLET_MODE=mode)
+  -i, --image string   Container image (mutually exclusive with vein name positional)
+  -m, --mode string    Fraglet mode (sets FRAGLET_MODE=mode)
+  -h, --help           Show this message
 
 Examples:
-  fragletc guide ada                    # Show guide for ada vein
-  fragletc guide python                  # Show guide for python vein
-  fragletc guide ada --mode main         # Show guide for ada vein with main mode
+  fragletc guide ada
+  fragletc guide ada --mode main
+  fragletc guide --mode main ada
+  fragletc guide -i my-registry/py:latest
 
-The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
+The command respects FRAGLET_VEINS_PATH when resolving the vein name.
 `)
+}
+
+func handleGuide() {
+	opts, err := parseGuideEssenceArgs(os.Args[2:])
+	if errors.Is(err, errGuideEssenceUsage) {
+		printGuideUsage()
+		os.Exit(0)
 	}
-
-	guideFlags.Parse(reorderArgs(os.Args[2:]))
-	args := guideFlags.Args()
-
-	if len(args) == 0 {
-		guideFlags.Usage()
-		os.Exit(1)
-	}
-
-	veinName := args[0]
-
-	registry, err := vein.LoadAuto(embed.LoadEmbeddedVeins)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading veins: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(2)
+	}
+
+	if opts.Image == "" && opts.VeinName == "" {
+		printGuideUsage()
 		os.Exit(1)
 	}
 
-	result, err := guide.Run(context.Background(), registry, veinName, *mode)
+	var registry *vein.VeinRegistry
+	if opts.VeinName != "" {
+		registry, err = vein.LoadAuto(embed.LoadEmbeddedVeins)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading veins: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	result, err := guide.Run(context.Background(), registry, opts.VeinName, opts.Mode, opts.Image)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error running guide: %v\n", err)
 		os.Exit(1)
@@ -398,45 +490,56 @@ The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
 	os.Exit(result.ExitCode)
 }
 
-func handleEssence() {
-	essenceFlags := flag.NewFlagSet("essence", flag.ExitOnError)
-	mode := essenceFlags.String("mode", "", "Fraglet mode (sets FRAGLET_MODE=mode)")
-	essenceFlags.StringVar(mode, "m", "", "Fraglet mode (short form)")
-	essenceFlags.Usage = func() {
-		fmt.Fprintf(os.Stderr, `Usage: fragletc essence [options] <vein-name>
+func printEssenceUsage() {
+	fmt.Fprintf(os.Stderr, `Usage:
+  fragletc essence [options and vein/image in any order]
 
-Show the fraglet essence (short capability summary) for a specific vein.
+  Resolve image from vein registry: provide exactly one vein name as a positional argument.
+  Use image directly: pass -i or --image (no vein name).
+
+Show the fraglet essence (short capability summary) from the container.
 
 Options:
-  -m, --mode string
-        Fraglet mode (sets FRAGLET_MODE=mode)
+  -i, --image string   Container image (mutually exclusive with vein name positional)
+  -m, --mode string    Fraglet mode (sets FRAGLET_MODE=mode)
+  -h, --help           Show this message
 
 Examples:
-  fragletc essence ada                    # Show essence for ada vein
-  fragletc essence python                 # Show essence for python vein
-  fragletc essence ada --mode main        # Show essence for ada vein with main mode
+  fragletc essence ada
+  fragletc essence ada --mode main
+  fragletc essence --mode main ada
+  fragletc essence -i my-registry/py:latest
 
-The command respects FRAGLET_VEINS_PATH environment variable for custom veins.
+The command respects FRAGLET_VEINS_PATH when resolving the vein name.
 `)
+}
+
+func handleEssence() {
+	opts, err := parseGuideEssenceArgs(os.Args[2:])
+	if errors.Is(err, errGuideEssenceUsage) {
+		printEssenceUsage()
+		os.Exit(0)
 	}
-
-	essenceFlags.Parse(reorderArgs(os.Args[2:]))
-	args := essenceFlags.Args()
-
-	if len(args) == 0 {
-		essenceFlags.Usage()
-		os.Exit(1)
-	}
-
-	veinName := args[0]
-
-	registry, err := vein.LoadAuto(embed.LoadEmbeddedVeins)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading veins: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(2)
+	}
+
+	if opts.Image == "" && opts.VeinName == "" {
+		printEssenceUsage()
 		os.Exit(1)
 	}
 
-	result, err := essence.Run(context.Background(), registry, veinName, *mode)
+	var registry *vein.VeinRegistry
+	if opts.VeinName != "" {
+		registry, err = vein.LoadAuto(embed.LoadEmbeddedVeins)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading veins: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	result, err := essence.Run(context.Background(), registry, opts.VeinName, opts.Mode, opts.Image)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error running essence: %v\n", err)
 		os.Exit(1)
@@ -488,26 +591,6 @@ func expandSavePath(path string) string {
 	return path
 }
 
-func reorderArgs(args []string) []string {
-	var flags, positionals []string
-	for i := 0; i < len(args); i++ {
-		if args[i] == "--" {
-			positionals = append(positionals, args[i+1:]...)
-			break
-		}
-		if strings.HasPrefix(args[i], "-") {
-			flags = append(flags, args[i])
-			if !strings.Contains(args[i], "=") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
-				i++
-				flags = append(flags, args[i])
-			}
-		} else {
-			positionals = append(positionals, args[i])
-		}
-	}
-	return append(flags, positionals...)
-}
-
 func usage() {
 	fmt.Fprintf(os.Stderr, `Usage: fragletc [flags] [script-file] [script-args...]
        fragletc refresh [options] [vein-name]
@@ -555,9 +638,9 @@ Subcommands:
                 Use with Claude Desktop, Cursor, or any MCP-compatible client
   refresh       Refresh (pull) container images for veins
                 Use "fragletc refresh --help" for details
-  guide         Show fraglet guide for a vein
+  guide         Show fraglet guide (vein registry or --image; flags and vein in any order)
                 Use "fragletc guide --help" for details
-  essence       Show fraglet essence (short capability summary) for a vein
+  essence       Show fraglet essence (vein registry or --image; flags and vein in any order)
                 Use "fragletc essence --help" for details
   version       Show build version, commit, and lineage info
 `)

@@ -1,0 +1,18 @@
+fragletTempPath: /FRAGLET
+injection:
+  codePath: /code/noop.sh
+  match: FRAGLET
+guide: /guide.md
+essence: /essence.md
+execution:
+  path: /code/noop.sh
+
+modes:
+  testmode:
+    injection:
+      codePath: /code/noop.sh
+      match: FRAGLET
+    guide: /guide-testmode.md
+    essence: /essence-testmode.md
+    execution:
+      path: /code/noop.sh
