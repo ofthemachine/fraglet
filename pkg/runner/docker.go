@@ -41,6 +41,15 @@ func (b *dockerRunBuilder) Volumes(volumes []VolumeMount) *dockerRunBuilder {
 	return b
 }
 
+// Network sets the container network mode (docker --network), e.g. "none" to
+// disable all networking. No-op when mode is empty (docker's default bridge).
+func (b *dockerRunBuilder) Network(mode string) *dockerRunBuilder {
+	if mode != "" {
+		b.args = append(b.args, "--network", mode)
+	}
+	return b
+}
+
 func (b *dockerRunBuilder) Env(env []string) *dockerRunBuilder {
 	for _, e := range env {
 		b.args = append(b.args, "-e", e)
@@ -127,7 +136,7 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 	allEnv := spec.Env
 
 	attachStdin := spec.StdinReader != nil || spec.Stdin != ""
-	base := newDockerRunBuilder(platform, attachStdin)
+	base := newDockerRunBuilder(platform, attachStdin).Network(spec.NetworkMode)
 	withCommon := func(b *dockerRunBuilder) *dockerRunBuilder {
 		return b.Env(allEnv).WorkDir(spec.WorkDir).Volumes(spec.Volumes)
 	}

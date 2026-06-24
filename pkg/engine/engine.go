@@ -30,6 +30,7 @@ type RunOptions struct {
 	Stdout      io.Writer
 	Stderr      io.Writer
 	ParamStrs   []string
+	NetworkMode string // docker --network value (e.g. "none" to disable networking); empty = default
 }
 
 // Run orchestrates the execution of a fraglet
@@ -108,6 +109,7 @@ func Run(ctx context.Context, opts RunOptions) (int, error) {
 		Container:   containerImage,
 		Env:         envVars,
 		Args:        opts.ScriptArgs,
+		NetworkMode: opts.NetworkMode,
 		StdinReader: opts.Stdin,
 		Stdout:      opts.Stdout,
 		Stderr:      opts.Stderr,

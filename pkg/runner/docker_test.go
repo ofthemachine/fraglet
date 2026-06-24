@@ -2,8 +2,30 @@ package runner
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"testing"
 )
+
+func TestDockerRunBuilder_Network(t *testing.T) {
+	// Empty mode is a no-op (docker default networking).
+	got := newDockerRunBuilder("linux/amd64", false).Network("").Image("img").Build()
+	if slices.Contains(got, "--network") {
+		t.Fatalf("empty network mode should not add --network: %v", got)
+	}
+
+	// "none" adds the flag+value pair before the image.
+	got = newDockerRunBuilder("linux/amd64", false).Network("none").Image("img").Build()
+	joined := strings.Join(got, " ")
+	if !strings.Contains(joined, "--network none") {
+		t.Fatalf("expected --network none in args, got: %v", got)
+	}
+	netIdx := slices.Index(got, "--network")
+	imgIdx := slices.Index(got, "img")
+	if netIdx < 0 || imgIdx < 0 || netIdx > imgIdx {
+		t.Fatalf("--network must precede the image: %v", got)
+	}
+}
 
 func TestDockerRunner_Available(t *testing.T) {
 	r := &dockerRunner{}

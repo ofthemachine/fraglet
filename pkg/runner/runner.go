@@ -53,6 +53,7 @@ type RunSpec struct {
 	WorkDir     string        // Optional working directory
 	Volumes     []VolumeMount // Optional volume mounts
 	Args        []string      // Arguments passed to the command
+	NetworkMode string        // Optional docker --network value (e.g. "none" to disable networking). Empty = docker default. Ignored by the local runner.
 	Stdout      io.Writer     // If non-nil, command stdout is written here; otherwise captured
 	Stderr      io.Writer     // If non-nil, command stderr is written here; otherwise captured
 	// Note: Executor field removed - Phase 2 feature when executor registry is designed
