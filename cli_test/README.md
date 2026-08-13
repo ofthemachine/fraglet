@@ -14,18 +14,22 @@ These tests verify:
 - Fraglet path configuration (`--fraglet-path`; long form only)
 - `--fraglet-help` and `fraglet-meta:` parameter declarations (shebang files + `-c`, dedup, errors); `-p` / `--param` / `--fraglet-help` stripped from argv anywhere before `--`
 - Error handling and validation
+- `output=` declarations + `--output <relpath>[=hostdest]`: `/output` mounts whenever any output= is declared (independent of `--output`); every declared output not named by `--output` is reported as discarded, never silently dropped or silently kept
+- `param=<alias>:file`: a file-shaped param's CLI value is a host path, mounted read-only at the fixed container path `/input/<alias>` (never the host path itself); multiple file params mount independently; a missing host file fails before the container starts
 
 ## Structure
 
 Each test category has its own directory:
 ```
 cli_test/
-  stdin/         - STDIN input tests
-  file/          - File input tests
-  vein/          - Embedded vein tests
-  fraglet_help/  - --fraglet-help + fraglet-meta (multi-scenario act/assert)
-  errors/        - Error handling tests
-  cli_test.go    - Test harness using clitest
+  stdin/            - STDIN input tests
+  file/             - File input tests
+  vein/             - Embedded vein tests
+  fraglet_help/     - --fraglet-help + fraglet-meta (multi-scenario act/assert)
+  errors/           - Error handling tests
+  output_declared/  - output= + --output (no-flag POLA case, partial requests, full requests)
+  param_file/       - param=<alias>:file (host file mounted read-only at /input/<alias>)
+  cli_test.go       - Test harness using clitest
 ```
 
 ## Test Format

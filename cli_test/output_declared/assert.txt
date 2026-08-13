@@ -1,0 +1,33 @@
+=== Test 1: no --output at all (must run, not crash; both discarded) ===
+script ran
+fragletc: discarded 2 declared output(s) not requested: first.txt, second.txt
+fragletc: pass --output first.txt to copy one out
+first.txt exists: no
+second.txt exists: no
+
+=== Test 2: --output second.txt only (first.txt must be reported, not silently dropped) ===
+script ran
+fragletc: copied second.txt -> ./second.txt
+fragletc: discarded 1 declared output(s) not requested: first.txt
+fragletc: pass --output first.txt to copy one out
+first.txt exists: no
+second.txt exists: yes
+second
+
+=== Test 3: --output for both (no discard note at all) ===
+script ran
+fragletc: copied first.txt -> ./first.txt
+fragletc: copied second.txt -> ./second.txt
+first.txt exists: yes
+second.txt exists: yes
+first
+second
+
+=== Test 4: --output with a rename (=hostdest) must be confirmed under the ACTUAL name, not the declared one ===
+script ran
+fragletc: copied second.txt -> renamed.txt
+fragletc: discarded 1 declared output(s) not requested: first.txt
+fragletc: pass --output first.txt to copy one out
+second.txt exists: no
+renamed.txt exists: yes
+second

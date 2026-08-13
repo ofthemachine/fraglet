@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -141,6 +143,62 @@ func (ps Params) ToCanonical() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// FileMount is a resolved file-shaped param: mount HostPath read-only at
+// ContainerPath before execution.
+type FileMount struct {
+	HostPath      string
+	ContainerPath string
+}
+
+// ResolveFileParams splits params (already alias-resolved via
+// ResolveAliases) into rewritten params and file mounts, using decls' Shape
+// == "file" declarations: a file-shaped param's decoded value is treated as
+// a host file path, mounted at inputMount+"/"+alias, and rewritten in place
+// to that container path so ToTransportEnv carries the mount path, not the
+// host location. Non-file params pass through unchanged. Mounts are sorted
+// by container path for determinism.
+func ResolveFileParams(decls []ParamDecl, params Params, inputMount string) (Params, []FileMount, error) {
+	if len(decls) == 0 || len(params) == 0 {
+		return params, nil, nil
+	}
+	alias := make(map[string]string, len(decls))
+	shape := make(map[string]string, len(decls))
+	for _, d := range decls {
+		alias[d.EnvVar] = d.Alias
+		shape[d.EnvVar] = d.Shape
+	}
+
+	rewritten := make(Params, len(params))
+	var mounts []FileMount
+	for i, p := range params {
+		if shape[p.EnvVar] != "file" {
+			rewritten[i] = p
+			continue
+		}
+		paramAlias := alias[p.EnvVar]
+		hostPath, err := p.Decode()
+		if err != nil {
+			return nil, nil, err
+		}
+		absHost, err := filepath.Abs(hostPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("param %q: %w", paramAlias, err)
+		}
+		info, err := os.Stat(absHost)
+		if err != nil {
+			return nil, nil, fmt.Errorf("param %q: file %q: %w", paramAlias, absHost, err)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, nil, fmt.Errorf("param %q: %q is not a regular file", paramAlias, absHost)
+		}
+		containerPath := inputMount + "/" + paramAlias
+		mounts = append(mounts, FileMount{HostPath: absHost, ContainerPath: containerPath})
+		rewritten[i] = Param{EnvVar: p.EnvVar, Encoding: "raw", Value: containerPath}
+	}
+	sort.Slice(mounts, func(i, j int) bool { return mounts[i].ContainerPath < mounts[j].ContainerPath })
+	return rewritten, mounts, nil
 }
 
 // ResolveAliases applies fraglet-meta param declarations to map aliases to env var names.

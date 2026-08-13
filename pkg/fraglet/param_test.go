@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/base64"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -242,5 +244,99 @@ func TestParams_ResolveAliases_EmptyDecls(t *testing.T) {
 	}
 	if resolved[0].EnvVar != "CITY" {
 		t.Fatalf("EnvVar = %q, want CITY", resolved[0].EnvVar)
+	}
+}
+
+func TestResolveFileParams_RelativePath(t *testing.T) {
+	hostFile := filepath.Join(t.TempDir(), "input.txt")
+	if err := os.WriteFile(hostFile, []byte("payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	relPath, err := filepath.Rel(wd, hostFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decls := []ParamDecl{{Alias: "doc", EnvVar: "DOC", Shape: "file"}}
+	params := Params{{EnvVar: "DOC", Encoding: "raw", Value: relPath}}
+	rewritten, mounts, err := ResolveFileParams(decls, params, "/input")
+	if err != nil {
+		t.Fatalf("ResolveFileParams: %v", err)
+	}
+	if len(mounts) != 1 {
+		t.Fatalf("mounts len = %d, want 1", len(mounts))
+	}
+	if mounts[0].HostPath != hostFile {
+		t.Fatalf("HostPath = %q, want absolute %q", mounts[0].HostPath, hostFile)
+	}
+	if mounts[0].ContainerPath != "/input/doc" {
+		t.Fatalf("ContainerPath = %q, want /input/doc", mounts[0].ContainerPath)
+	}
+	if rewritten[0].Value != "/input/doc" {
+		t.Fatalf("rewritten value = %q, want /input/doc", rewritten[0].Value)
+	}
+}
+
+func TestResolveFileParams_DecodedB64Path(t *testing.T) {
+	hostFile := filepath.Join(t.TempDir(), "input.txt")
+	if err := os.WriteFile(hostFile, []byte("payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(hostFile))
+
+	decls := []ParamDecl{{Alias: "doc", EnvVar: "DOC", Shape: "file"}}
+	params := Params{{EnvVar: "DOC", Encoding: "b64", Value: encoded}}
+	_, mounts, err := ResolveFileParams(decls, params, "/input")
+	if err != nil {
+		t.Fatalf("ResolveFileParams: %v", err)
+	}
+	if len(mounts) != 1 || mounts[0].HostPath != hostFile {
+		t.Fatalf("mounts = %+v, want host %q", mounts, hostFile)
+	}
+}
+
+func TestResolveFileParams_StringParamUnchanged(t *testing.T) {
+	decls := []ParamDecl{
+		{Alias: "city", EnvVar: "CITY", Shape: "string"},
+		{Alias: "doc", EnvVar: "DOC", Shape: "file"},
+	}
+	hostFile := filepath.Join(t.TempDir(), "input.txt")
+	if err := os.WriteFile(hostFile, []byte("payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	params := Params{
+		{EnvVar: "CITY", Encoding: "raw", Value: "london"},
+		{EnvVar: "DOC", Encoding: "raw", Value: hostFile},
+	}
+	rewritten, mounts, err := ResolveFileParams(decls, params, "/input")
+	if err != nil {
+		t.Fatalf("ResolveFileParams: %v", err)
+	}
+	if len(mounts) != 1 {
+		t.Fatalf("mounts len = %d, want 1", len(mounts))
+	}
+	if rewritten[0].Value != "london" {
+		t.Fatalf("string param rewritten to %q, want london", rewritten[0].Value)
+	}
+}
+
+func TestResolveFileParams_MissingFile(t *testing.T) {
+	decls := []ParamDecl{{Alias: "doc", EnvVar: "DOC", Shape: "file"}}
+	params := Params{{EnvVar: "DOC", Encoding: "raw", Value: filepath.Join(t.TempDir(), "missing.txt")}}
+	if _, _, err := ResolveFileParams(decls, params, "/input"); err == nil {
+		t.Fatal("expected error for missing file")
+	}
+}
+
+func TestResolveFileParams_DirectoryRejected(t *testing.T) {
+	dir := t.TempDir()
+	decls := []ParamDecl{{Alias: "doc", EnvVar: "DOC", Shape: "file"}}
+	params := Params{{EnvVar: "DOC", Encoding: "raw", Value: dir}}
+	if _, _, err := ResolveFileParams(decls, params, "/input"); err == nil {
+		t.Fatal("expected error for directory path")
 	}
 }

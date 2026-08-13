@@ -1,12 +1,14 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ofthemachine/fraglet/pkg/embed"
 	"github.com/ofthemachine/fraglet/pkg/fraglet"
@@ -15,6 +17,191 @@ import (
 )
 
 const defaultFragletPath = "/FRAGLET"
+
+// OutputMount is the container path where a fraglet writes declared output
+// files (fraglet-meta output= decls); ExecuteSpec.OutputHostDir, when set,
+// is mounted writable here.
+const OutputMount = "/output"
+
+// InputMount is the container path root where file-shaped params
+// (fraglet-meta param=<alias>:file) are mounted read-only, one per alias:
+// InputMount + "/" + alias.
+const InputMount = "/input"
+
+// ExecuteSpec is the explicit, library-shaped input to Execute: no vein
+// resolution and no CLI argv parsing, just what to run and how.
+type ExecuteSpec struct {
+	Image string
+	Code  string // full file content (header + body); Execute mounts only the body (see fraglet.SplitHeader)
+
+	Env     []string
+	Volumes []runner.VolumeMount // extra mounts: file-shaped params, bundled content, etc.
+
+	// OutputHostDir, when non-empty, is mounted writable at OutputMount.
+	// Execute does not create or clean up this directory — that's the
+	// caller's job (its lifecycle is tied to what the caller does with the
+	// files afterward: capture into CAS, copy out named files, etc.).
+	OutputHostDir string
+
+	// SecretEnvNames lists Env entries to redact from verbose logging. Real
+	// values still flow to the container unredacted — this only affects
+	// what Execute prints when Verbose is set.
+	SecretEnvNames []string
+
+	NetworkMode string
+	Args        []string
+	Stdin       io.Reader
+	Stdout      io.Writer
+	Stderr      io.Writer
+	Verbose     bool
+
+	// FragletPath is the container mount path for the body script.
+	// Defaults to defaultFragletPath when empty.
+	FragletPath string
+}
+
+// ExecuteResult is the structured outcome of a container run.
+type ExecuteResult struct {
+	Stdout   string
+	Stderr   string
+	ExitCode int
+	Duration time.Duration
+}
+
+// Execute mounts the body of spec.Code (spec.Code's header — shebang plus
+// fraglet-meta/x-operon/plain "#" lines — is stripped via fraglet.SplitHeader
+// and never reaches the container) and runs it in spec.Image. It captures
+// stdout/stderr into the returned ExecuteResult while also forwarding to
+// spec.Stdout/spec.Stderr when set, so a caller gets both a full string
+// (e.g. for ledger recording) and live streaming from the same run.
+func Execute(ctx context.Context, spec ExecuteSpec) (ExecuteResult, error) {
+	return runContainer(ctx, containerRunSpec{
+		image:          spec.Image,
+		code:           spec.Code,
+		env:            spec.Env,
+		volumes:        spec.Volumes,
+		outputHostDir:  spec.OutputHostDir,
+		networkMode:    spec.NetworkMode,
+		args:           spec.Args,
+		stdin:          spec.Stdin,
+		stdout:         spec.Stdout,
+		stderr:         spec.Stderr,
+		verbose:        spec.Verbose,
+		secretEnvNames: spec.SecretEnvNames,
+		fragletPath:    spec.FragletPath,
+		capture:        true,
+	})
+}
+
+// containerRunSpec is the internal, shared execution input for Execute (capture)
+// and Run (stream-only).
+type containerRunSpec struct {
+	image          string
+	code           string
+	env            []string
+	volumes        []runner.VolumeMount
+	outputHostDir  string
+	networkMode    string
+	args           []string
+	stdin          io.Reader
+	stdout         io.Writer
+	stderr         io.Writer
+	verbose        bool
+	secretEnvNames []string
+	fragletPath    string
+	capture        bool
+}
+
+func runContainer(ctx context.Context, spec containerRunSpec) (ExecuteResult, error) {
+	fragletPath := spec.fragletPath
+	if fragletPath == "" {
+		fragletPath = defaultFragletPath
+	}
+
+	_, body := fraglet.SplitHeader(spec.code)
+
+	if spec.verbose {
+		fmt.Fprintf(os.Stderr, "fraglet: executing %s\n", spec.image)
+		fmt.Fprintf(os.Stderr, "fraglet: env: %v\n", redactEnv(spec.env, spec.secretEnvNames))
+	}
+
+	tmpFile, cleanup, err := writeTempFile(body)
+	if err != nil {
+		return ExecuteResult{}, fmt.Errorf("error creating temp file: %w", err)
+	}
+	defer cleanup()
+
+	volumes := make([]runner.VolumeMount, 0, len(spec.volumes)+2)
+	volumes = append(volumes, runner.VolumeMount{HostPath: tmpFile, ContainerPath: fragletPath})
+	volumes = append(volumes, spec.volumes...)
+	if spec.outputHostDir != "" {
+		volumes = append(volumes, runner.VolumeMount{HostPath: spec.outputHostDir, ContainerPath: OutputMount, Writable: true})
+	}
+
+	sink := newOutputSink(spec.capture, spec.stdout, spec.stderr)
+
+	r := runner.NewRunner(spec.image, "")
+	result, err := r.Run(ctx, runner.RunSpec{
+		Container:   spec.image,
+		Env:         spec.env,
+		Args:        spec.args,
+		NetworkMode: spec.networkMode,
+		StdinReader: spec.stdin,
+		Stdout:      sink.stdout,
+		Stderr:      sink.stderr,
+		Volumes:     volumes,
+	})
+	if err != nil {
+		return ExecuteResult{}, fmt.Errorf("execution failed: %w", err)
+	}
+
+	out := ExecuteResult{
+		ExitCode: result.ExitCode,
+		Duration: result.Duration,
+	}
+	if spec.capture {
+		out.Stdout = bufferToString(sink.stdoutBuf, result.Stdout)
+		out.Stderr = bufferToString(sink.stderrBuf, result.Stderr)
+	}
+	return out, nil
+}
+
+type outputSink struct {
+	stdout    io.Writer
+	stderr    io.Writer
+	stdoutBuf *bytes.Buffer
+	stderrBuf *bytes.Buffer
+}
+
+func newOutputSink(capture bool, stdout, stderr io.Writer) outputSink {
+	if !capture {
+		s := outputSink{stdout: stdout, stderr: stderr}
+		if s.stdout == nil {
+			s.stdout = io.Discard
+		}
+		if s.stderr == nil {
+			s.stderr = io.Discard
+		}
+		return s
+	}
+
+	stdoutBuf := &bytes.Buffer{}
+	stderrBuf := &bytes.Buffer{}
+	stdoutW := io.Writer(stdoutBuf)
+	if stdout != nil {
+		stdoutW = io.MultiWriter(stdoutBuf, stdout)
+	}
+	stderrW := io.Writer(stderrBuf)
+	if stderr != nil {
+		stderrW = io.MultiWriter(stderrBuf, stderr)
+	}
+	return outputSink{
+		stdout:    stdoutW,
+		stderr:    stderrW,
+		stdoutBuf: stdoutBuf,
+		stderrBuf: stderrBuf,
+	}
+}
 
 // RunOptions defines the parameters for executing a fraglet
 type RunOptions struct {
@@ -31,6 +218,12 @@ type RunOptions struct {
 	Stderr      io.Writer
 	ParamStrs   []string
 	NetworkMode string // docker --network value (e.g. "none" to disable networking); empty = default
+
+	// OutputHostDir, when non-empty, is mounted writable at OutputMount so
+	// the fraglet's declared output= files land there. Creating and
+	// cleaning up this directory is the caller's job (see cmd/fragletc's
+	// --output flag for the CLI-facing named-copy convention).
+	OutputHostDir string
 }
 
 // Run orchestrates the execution of a fraglet
@@ -71,7 +264,8 @@ func Run(ctx context.Context, opts RunOptions) (int, error) {
 	// --- Build env vars ---
 	envVars := buildEnvVars(finalMode, opts.EnvFlags)
 
-	// --- Parse and resolve params ---
+	// --- Parse and resolve params (including file-shaped params) ---
+	var volumes []runner.VolumeMount
 	if len(opts.ParamStrs) > 0 {
 		var params fraglet.Params
 		for _, pf := range opts.ParamStrs {
@@ -81,14 +275,20 @@ func Run(ctx context.Context, opts RunOptions) (int, error) {
 			}
 			params = append(params, p)
 		}
-		// Resolve aliases via fraglet-meta declarations if code is available
 		decls := fraglet.ParseParamDecls(code)
 		if len(decls) > 0 {
-			var err error
 			params, err = params.ResolveAliases(decls)
 			if err != nil {
 				return 1, fmt.Errorf("param alias error: %w", err)
 			}
+		}
+		var fileMounts []fraglet.FileMount
+		params, fileMounts, err = fraglet.ResolveFileParams(decls, params, InputMount)
+		if err != nil {
+			return 1, fmt.Errorf("file param error: %w", err)
+		}
+		for _, m := range fileMounts {
+			volumes = append(volumes, runner.VolumeMount{HostPath: m.HostPath, ContainerPath: m.ContainerPath})
 		}
 		transportEnv, err := params.ToTransportEnv()
 		if err != nil {
@@ -97,35 +297,23 @@ func Run(ctx context.Context, opts RunOptions) (int, error) {
 		envVars = append(envVars, transportEnv...)
 	}
 
-	// --- Write temp file, build spec, execute ---
-	tmpFile, cleanup, err := writeTempFile(code)
+	result, err := runContainer(ctx, containerRunSpec{
+		image:         containerImage,
+		code:          code,
+		env:           envVars,
+		volumes:       volumes,
+		outputHostDir: opts.OutputHostDir,
+		networkMode:   opts.NetworkMode,
+		args:          opts.ScriptArgs,
+		stdin:         opts.Stdin,
+		stdout:        opts.Stdout,
+		stderr:        opts.Stderr,
+		fragletPath:   fragletMountPath,
+		capture:       false,
+	})
 	if err != nil {
-		return 1, fmt.Errorf("error creating temp file: %w", err)
+		return 1, err
 	}
-	defer cleanup()
-
-	r := runner.NewRunner(containerImage, "")
-	spec := runner.RunSpec{
-		Container:   containerImage,
-		Env:         envVars,
-		Args:        opts.ScriptArgs,
-		NetworkMode: opts.NetworkMode,
-		StdinReader: opts.Stdin,
-		Stdout:      opts.Stdout,
-		Stderr:      opts.Stderr,
-		Volumes: []runner.VolumeMount{
-			{
-				HostPath:      tmpFile,
-				ContainerPath: fragletMountPath,
-			},
-		},
-	}
-
-	result, err := r.Run(ctx, spec)
-	if err != nil {
-		return 1, fmt.Errorf("execution failed: %w", err)
-	}
-
 	return result.ExitCode, nil
 }
 
@@ -165,6 +353,10 @@ func resolveVeinAndMode(veinSpec, modeFlag, image, scriptFile string) (veinName,
 	return
 }
 
+// resolveCode returns the full file content unmodified. Execute (via
+// fraglet.SplitHeader) strips the header — shebang plus all fraglet-meta /
+// x-operon / plain "#" lines — before the container ever sees any of it, so
+// there is nothing left for the caller to strip here.
 func resolveCode(inlineCode, scriptFile string) (string, error) {
 	if inlineCode != "" {
 		return inlineCode, nil
@@ -174,7 +366,7 @@ func resolveCode(inlineCode, scriptFile string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("error reading file %s: %w", scriptFile, err)
 		}
-		return stripShebang(string(data)), nil
+		return string(data), nil
 	}
 	return "", fmt.Errorf("no code source provided. Use a script file or -c flag")
 }
@@ -250,11 +442,32 @@ func writeTempFile(content string) (string, func(), error) {
 	return absPath, cleanup, nil
 }
 
-func stripShebang(code string) string {
-	if strings.HasPrefix(code, "#!") {
-		if idx := strings.Index(code, "\n"); idx != -1 {
-			return code[idx+1:]
+func bufferToString(buf *bytes.Buffer, fallback string) string {
+	if buf.Len() > 0 {
+		return buf.String()
+	}
+	return fallback
+}
+
+// redactEnv returns env with the value of every entry whose name is in
+// secrets replaced by "***". Used only for verbose logging — the real
+// values are always what reaches the container.
+func redactEnv(env []string, secrets []string) []string {
+	if len(secrets) == 0 {
+		return env
+	}
+	secretSet := make(map[string]bool, len(secrets))
+	for _, s := range secrets {
+		secretSet[s] = true
+	}
+	redacted := make([]string, len(env))
+	for i, e := range env {
+		name, _, ok := strings.Cut(e, "=")
+		if ok && secretSet[name] {
+			redacted[i] = name + "=***"
+		} else {
+			redacted[i] = e
 		}
 	}
-	return code
+	return redacted
 }

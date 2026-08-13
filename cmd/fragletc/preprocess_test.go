@@ -8,12 +8,13 @@ import (
 func TestPreprocessFragletArgv(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name      string
-		args      []string
-		wantTail  []string
-		wantHelp  bool
-		wantParam []string
-		wantErr   bool
+		name       string
+		args       []string
+		wantTail   []string
+		wantHelp   bool
+		wantParam  []string
+		wantOutput []string
+		wantErr    bool
 	}{
 		{
 			name:     "help only",
@@ -61,11 +62,29 @@ func TestPreprocessFragletArgv(t *testing.T) {
 			wantTail: nil,
 			wantErr:  true,
 		},
+		{
+			name:       "output equals",
+			args:       []string{"--output=series.csv", "a.py"},
+			wantTail:   []string{"a.py"},
+			wantOutput: []string{"series.csv"},
+		},
+		{
+			name:       "output value form",
+			args:       []string{"--output", "series.csv=/tmp/out.csv", "a.py"},
+			wantTail:   []string{"a.py"},
+			wantOutput: []string{"series.csv=/tmp/out.csv"},
+		},
+		{
+			name:     "missing output value",
+			args:     []string{"--output"},
+			wantTail: nil,
+			wantErr:  true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			gotTail, gotHelp, gotParam, err := preprocessFragletArgv(tt.args)
+			gotTail, gotHelp, gotParam, gotOutput, err := preprocessFragletArgv(tt.args)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error")
@@ -80,6 +99,9 @@ func TestPreprocessFragletArgv(t *testing.T) {
 			}
 			if !reflect.DeepEqual(gotParam, tt.wantParam) {
 				t.Errorf("params: got %#v want %#v", gotParam, tt.wantParam)
+			}
+			if !reflect.DeepEqual(gotOutput, tt.wantOutput) {
+				t.Errorf("outputs: got %#v want %#v", gotOutput, tt.wantOutput)
 			}
 			if !reflect.DeepEqual(gotTail, tt.wantTail) {
 				t.Errorf("tail: got %#v want %#v", gotTail, tt.wantTail)

@@ -1,0 +1,12 @@
+=== Test 1: single file-shaped param ===
+hello from host
+
+=== Test 2: two file-shaped params, independently mounted ===
+doc: hello from host
+notes: second file
+
+=== Test 3: missing host file fails before the container ever runs ===
+file param error: param "doc": file "{{path}}": stat {{path}}: no such file or directory
+
+=== Test 4: mount is read-only ===
+write blocked: True
