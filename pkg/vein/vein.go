@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/ofthemachine/fraglet/pkg/dockercli"
 )
 
 // Vein defines an injection point for fraglet code
@@ -70,7 +72,7 @@ func imageExistsLocally(image string) bool {
 	if cached, ok := imageExistsCache.Load(image); ok {
 		return cached.(bool)
 	}
-	cmd := exec.Command("docker", "image", "inspect", "--format", ".", image)
+	cmd := exec.Command(dockercli.Binary(), "image", "inspect", "--format", ".", image)
 	err := cmd.Run()
 	exists := err == nil
 	imageExistsCache.Store(image, exists)
@@ -128,7 +130,7 @@ func (r *VeinRegistry) List() []string {
 // fraglet artifacts so re-execution uses the same image. If the image cannot be resolved
 // to a digest (e.g. local-only image), returns the original image reference unchanged.
 func ResolveImageDigest(ctx context.Context, image string) (string, error) {
-	cmd := exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "{{index .RepoDigests 0}}", image)
+	cmd := exec.CommandContext(ctx, dockercli.Binary(), "image", "inspect", "--format", "{{index .RepoDigests 0}}", image)
 	out, err := cmd.Output()
 	if err != nil {
 		return image, nil // return as-is so save still works

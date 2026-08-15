@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+
+	"github.com/ofthemachine/fraglet/pkg/dockercli"
 )
 
 // dockerRunBuilder constructs "docker run ..." argv in a consistent order:
@@ -16,7 +18,7 @@ type dockerRunBuilder struct {
 }
 
 func newDockerRunBuilder(platform string, attachStdin bool) *dockerRunBuilder {
-	args := []string{"docker", "run", "--rm"}
+	args := []string{dockercli.Binary(), "run", "--rm"}
 	if attachStdin {
 		args = append(args, "-i")
 	}
@@ -91,8 +93,7 @@ func (r *dockerRunner) Name() string {
 }
 
 func (r *dockerRunner) Available() bool {
-	// Check if docker is available
-	cmd := exec.Command("docker", "version")
+	cmd := exec.Command(dockercli.Binary(), "version")
 	if err := cmd.Run(); err != nil {
 		return false
 	}
@@ -278,12 +279,12 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 
 // ensureDockerImage checks if the image exists locally; if not, it pulls it for the given platform.
 func ensureDockerImage(ctx context.Context, image, platform string) error {
-	inspect := exec.CommandContext(ctx, "docker", "image", "inspect", image)
+	inspect := exec.CommandContext(ctx, dockercli.Binary(), "image", "inspect", image)
 	if err := inspect.Run(); err == nil {
 		return nil // already present
 	}
 	// Pull with platform
-	pull := exec.CommandContext(ctx, "docker", "pull", "--platform", platform, image)
+	pull := exec.CommandContext(ctx, dockercli.Binary(), "pull", "--platform", platform, image)
 	if out, err := pull.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to pull image %s: %v\n%s", image, err, string(out))
 	}
