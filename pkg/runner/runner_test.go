@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 )
@@ -113,51 +114,45 @@ func TestLocalRunner_RunStreaming(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	var stdout string
-	var stderr string
-	var exitCode int
+	var stdout, stderr string
+	var collected sync.WaitGroup
 
-	// Collect stdout chunks
+	// Collect stdout/stderr chunks. A prior version read `stdout` from the
+	// main goroutine after a fixed time.Sleep, racing with these writes
+	// (go test -race caught it every time) — collected.Wait() below gives
+	// an actual happens-before guarantee instead of guessing at a delay.
+	collected.Add(2)
 	go func() {
+		defer collected.Done()
 		for chunk := range streaming.Stdout {
 			stdout += chunk
 		}
 	}()
-
-	// Collect stderr chunks
 	go func() {
+		defer collected.Done()
 		for chunk := range streaming.Stderr {
 			stderr += chunk
 		}
 	}()
 
-	// Wait for exit code
-	go func() {
-		if code := <-streaming.ExitCode; code != 0 {
-			exitCode = code
-		}
-	}()
-
 	// Wait for command to complete
-	timeout := time.After(5 * time.Second)
+	var exitCode int
 	select {
 	case err := <-streaming.Done:
 		if err != nil {
 			t.Logf("Command completed with error: %v", err)
 		}
-		// Give goroutines a moment to finish
-		time.Sleep(50 * time.Millisecond)
-	case <-timeout:
+	case <-time.After(5 * time.Second):
 		t.Fatal("Timeout waiting for command to complete")
 	}
 
-	// Read exit code if not already received
 	select {
-	case code := <-streaming.ExitCode:
-		exitCode = code
-	case <-time.After(100 * time.Millisecond):
-		// Already received or won't receive
+	case exitCode = <-streaming.ExitCode:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timeout waiting for exit code")
 	}
+
+	collected.Wait()
 
 	if exitCode != 0 {
 		t.Errorf("Expected exit code 0, got %d", exitCode)

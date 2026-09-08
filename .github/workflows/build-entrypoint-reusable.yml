@@ -24,7 +24,7 @@ jobs:
       - name: Run tests
         run: |
           make build-info
-          go test ./...
+          go test -race ./...
 
       - name: Build multi-arch binaries
         run: |

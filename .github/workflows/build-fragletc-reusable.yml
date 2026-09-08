@@ -23,7 +23,7 @@ jobs:
           cat cmd/fragletc/build-info.json
 
       - name: Run tests
-        run: go test ./...
+        run: go test -race ./...
 
       - name: Build multi-arch binaries (Linux + Windows + macOS)
         run: |

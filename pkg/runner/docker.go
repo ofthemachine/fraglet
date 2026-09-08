@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"sync"
 
 	"github.com/ofthemachine/fraglet/pkg/dockercli"
 )
@@ -212,8 +213,17 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 		return nil, fmt.Errorf("failed to start docker command: %w", err)
 	}
 
+	// dockerCmd.Wait() closes these pipes once the process exits (see
+	// os/exec's StdoutPipe/StderrPipe docs: "it is incorrect to call Wait
+	// before all reads from the pipe have completed"). Without waiting for
+	// the readers here, Wait() can win the race and close the pipe before a
+	// reader's first Read() even runs, silently delivering zero bytes — the
+	// same real, `-race`-confirmed bug fixed in local.go's RunStreaming.
+	var pipesDrained sync.WaitGroup
 	if spec.Stdout == nil {
+		pipesDrained.Add(1)
 		go func() {
+			defer pipesDrained.Done()
 			defer close(stdoutChan)
 			buf := make([]byte, 4096)
 			for {
@@ -228,7 +238,9 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 		}()
 	}
 	if spec.Stderr == nil {
+		pipesDrained.Add(1)
 		go func() {
+			defer pipesDrained.Done()
 			defer close(stderrChan)
 			buf := make([]byte, 4096)
 			for {
@@ -244,6 +256,7 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 	}
 
 	go func() {
+		pipesDrained.Wait()
 		err := dockerCmd.Wait()
 		if cleanup != nil {
 			cleanup()

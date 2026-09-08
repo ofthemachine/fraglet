@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sync"
 )
 
 // localRunner executes commands directly on the host, ignoring container settings
@@ -115,8 +116,19 @@ func (r *localRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streamin
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
+	// cmd.Wait() closes these pipes once the process exits (see os/exec's
+	// StdoutPipe/StderrPipe docs: "it is incorrect to call Wait before all
+	// reads from the pipe have completed"). Without waiting for the readers
+	// here, Wait() can win the race and close the pipe before a reader's
+	// first Read() even runs, silently delivering zero bytes — a real race
+	// (confirmed with `go test -race`, reproduces every time), not just a
+	// theoretical one, and exactly what let this pass reliably on a fast
+	// local machine while flaking on CI.
+	var pipesDrained sync.WaitGroup
 	if spec.Stdout == nil {
+		pipesDrained.Add(1)
 		go func() {
+			defer pipesDrained.Done()
 			defer close(stdoutChan)
 			buf := make([]byte, 4096)
 			for {
@@ -131,7 +143,9 @@ func (r *localRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streamin
 		}()
 	}
 	if spec.Stderr == nil {
+		pipesDrained.Add(1)
 		go func() {
+			defer pipesDrained.Done()
 			defer close(stderrChan)
 			buf := make([]byte, 4096)
 			for {
@@ -147,6 +161,7 @@ func (r *localRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streamin
 	}
 
 	go func() {
+		pipesDrained.Wait()
 		err := cmd.Wait()
 		if cleanup != nil {
 			cleanup()
