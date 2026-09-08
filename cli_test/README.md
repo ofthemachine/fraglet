@@ -15,9 +15,10 @@ These tests verify:
 - `--fraglet-help` and `fraglet-meta:` parameter declarations (shebang files + `-c`, dedup, errors); `-p` / `--param` / `--fraglet-help` stripped from argv anywhere before `--`
 - Error handling and validation
 - `output=` declarations + `--output <relpath>[=hostdest]`: `/output` mounts whenever any output= is declared (independent of `--output`); every declared output not named by `--output` is reported as discarded, never silently dropped or silently kept
-- `--output-dir <hostdir>`: mounts a real host directory writable at `/output` with no `output=` declaration needed — for a fraglet whose output filename is only known at runtime; mutually exclusive with `--output`
+- `--output-dir <hostdir>`: copies everything written to `/output` into `hostdir` after the run, with no `output=` declaration needed — for a fraglet whose output filename is only known at runtime; mutually exclusive with `--output`
 - `--output <dest>` shorthand: a bare, unrecognized relpath with exactly one `output=` declared is treated as that output's destination — no need to repeat the fraglet's own declared filename when there's nothing to disambiguate; left alone (real "not declared" error) when >1 output is declared or the caller wrote an explicit `relpath=dest`
 - `param=<alias>:file`: a file-shaped param's CLI value is a host path, mounted read-only at the fixed container path `/input/<alias>` (never the host path itself); multiple file params mount independently; a missing host file fails before the container starts
+- Relative output paths (`--output-dir=.` baked into a shebang, `--output=<dest>`) resolve against the caller's cwd at invocation, never the directory the script itself lives in — a self-exec script at `skills/fun/meme.sh` behaves like a locally installed tool, not like its output depends on where it's checked into the repo
 
 ## Structure
 
@@ -32,6 +33,7 @@ cli_test/
   output_declared/  - output= + --output (no-flag POLA case, partial requests, full requests)
   output_dir/       - --output-dir (runtime-chosen filenames, default naming, mutual exclusion with --output)
   output_shorthand/ - --output <dest> single-output shorthand (no relpath needed when unambiguous)
+  output_relative_to_caller/ - relative --output-dir/--output resolve against the caller's cwd, not the script's own directory
   param_file/       - param=<alias>:file (host file mounted read-only at /input/<alias>)
   cli_test.go       - Test harness using clitest
 ```

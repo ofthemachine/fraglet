@@ -59,6 +59,18 @@ func TestExecute_OutputMount(t *testing.T) {
 	requireDocker(t)
 
 	outDir := t.TempDir()
+	// t.TempDir() is 0700. Containers run with --cap-drop=all (pkg/runner/
+	// docker.go), which strips CAP_DAC_OVERRIDE, so root inside the
+	// container no longer bypasses host permission checks — on a real
+	// Linux dockerd (not Docker Desktop's more permissive bind mounts),
+	// root can't write into a dir it doesn't own unless it's opened up.
+	// Execute() itself never chmods OutputHostDir (it isn't Execute's
+	// directory to manage), so whoever creates the scratch dir — here,
+	// this test, mirroring what cmd/fragletc/fragletc.go does for its own
+	// scratch dir — is responsible for making it writable.
+	if err := os.Chmod(outDir, 0o777); err != nil {
+		t.Fatal(err)
+	}
 	code := "#!/usr/bin/env -S fragletc --image alpine:latest\n#: output=result.txt\n\necho placeholder"
 
 	_, err := Execute(context.Background(), ExecuteSpec{

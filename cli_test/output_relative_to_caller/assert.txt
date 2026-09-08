@@ -1,0 +1,10 @@
+=== Test 1: --output-dir=. baked into the shebang resolves against the caller's cwd, not the script's directory ===
+wrote out.txt
+landed in caller cwd: yes
+did not land in script dir: correct
+
+=== Test 2: --output=<dest> resolves against the caller's cwd, not the script's directory ===
+wrote result.txt
+landed in caller cwd: yes
+did not land in script dir: correct
+fragletc: copied result.txt -> image.png

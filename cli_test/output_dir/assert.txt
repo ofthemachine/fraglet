@@ -8,4 +8,10 @@ wrote default.txt
 default.txt exists: yes
 
 === Test 3: --output-dir and --output are mutually exclusive ===
---output-dir and --output are mutually exclusive: --output-dir already mounts a real, live directory, so there's nothing left to declare or copy out
+--output-dir and --output are mutually exclusive: --output-dir already copies everything out, so there's nothing left to declare or copy individually
+
+=== Test 4: same --output-dir, same filename, run twice -- overwrites, same as a locally installed tool would ===
+wrote repeat.txt
+hi
+wrote repeat.txt
+second run

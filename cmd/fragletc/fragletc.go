@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -143,7 +144,7 @@ func main() {
 	fragletPath := flag.String("fraglet-path", defaultFragletPath, "Path where code is mounted in container")
 	mode := flag.String("mode", "", "Fraglet mode (sets FRAGLET_MODE=mode)")
 	inlineCode := flag.String("c", "", "Program passed in as string (like python -c)")
-	outputDir := flag.String("output-dir", "", "Mount this host directory writable at /output — for a fraglet whose output filename isn't known ahead of time (e.g. wrapping a real CLI tool's own -o/default naming). Files land directly, live; skips declared-output= validation and --output's copy-out step entirely. Mutually exclusive with --output.")
+	outputDir := flag.String("output-dir", "", "Copy everything the fraglet writes to /output into this host directory after the run — for a fraglet whose output filename isn't known ahead of time (e.g. wrapping a real CLI tool's own -o/default naming). No declared-output= needed: whatever lands in /output is copied out, overwriting same-named files, same as a locally installed tool would. Mutually exclusive with --output.")
 	var envFlags envListFlag
 	flag.Var(&envFlags, "e", "Environment variable to forward (repeatable, e.g. -e FOO -e BAR=val)")
 
@@ -190,7 +191,7 @@ func main() {
 	}
 
 	if *outputDir != "" && len(outputRequests) > 0 {
-		fmt.Fprintln(os.Stderr, "--output-dir and --output are mutually exclusive: --output-dir already mounts a real, live directory, so there's nothing left to declare or copy out")
+		fmt.Fprintln(os.Stderr, "--output-dir and --output are mutually exclusive: --output-dir already copies everything out, so there's nothing left to declare or copy individually")
 		os.Exit(2)
 	}
 
@@ -226,27 +227,49 @@ func main() {
 		// real "no code source" / "file not found" error naturally below.
 	}
 
+	// finalOutputDir is set for --output-dir: the caller's own real
+	// directory, which fragletc never mounts or chmods directly (it isn't
+	// fragletc's to manage). Instead the container always writes into
+	// fragletc's own disposable scratch mount below, and that gets copied
+	// into finalOutputDir after the run — the same "our own scratch dir,
+	// caller's directory touched only by writing named files into it" shape
+	// declared-output/--output already uses (copyRequestedOutputs), just
+	// copying everything instead of specific declared relpaths.
+	var finalOutputDir string
 	var outputHostDir string
-	switch {
-	case *outputDir != "":
-		abs, err := filepath.Abs(*outputDir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "--output-dir %q: %v\n", *outputDir, err)
-			os.Exit(2)
-		}
-		if err := os.MkdirAll(abs, 0o755); err != nil {
-			fmt.Fprintf(os.Stderr, "--output-dir %q: %v\n", *outputDir, err)
-			os.Exit(1)
-		}
-		outputHostDir = abs
-	case len(declaredOutputs) > 0 || len(outputRequests) > 0:
+	if *outputDir != "" || len(declaredOutputs) > 0 || len(outputRequests) > 0 {
 		dir, err := os.MkdirTemp("", "fragletc-output-*")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 		defer os.RemoveAll(dir)
+		// Containers run with --cap-drop=all (pkg/runner/docker.go), which
+		// strips CAP_DAC_OVERRIDE: root inside the container no longer
+		// bypasses host file permission checks the way an unconstrained
+		// root would, so a freshly created 0700 temp dir is unwritable by
+		// whatever UID the container's root maps to on the host. Since
+		// this is fragletc's own throwaway scratch directory (removed
+		// above), opening it up is free — unlike a caller-supplied
+		// --output-dir, which fragletc must never chmod.
+		if err := os.Chmod(dir, 0o777); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 		outputHostDir = dir
+
+		if *outputDir != "" {
+			abs, err := filepath.Abs(*outputDir)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "--output-dir %q: %v\n", *outputDir, err)
+				os.Exit(2)
+			}
+			if err := os.MkdirAll(abs, 0o755); err != nil {
+				fmt.Fprintf(os.Stderr, "--output-dir %q: %v\n", *outputDir, err)
+				os.Exit(1)
+			}
+			finalOutputDir = abs
+		}
 	}
 
 	opts := engine.RunOptions{
@@ -269,7 +292,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	if exitCode == 0 && *outputDir == "" {
+	if finalOutputDir != "" {
+		// Copy regardless of exitCode, mirroring what a live mount would
+		// have shown: whatever the container wrote before succeeding or
+		// failing is what the caller gets, including partial output from a
+		// failed run useful for debugging.
+		if err := copyOutputTreeContents(outputHostDir, finalOutputDir); err != nil {
+			fmt.Fprintf(os.Stderr, "--output-dir: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	if exitCode == 0 && finalOutputDir == "" {
 		if len(outputRequests) > 0 {
 			if err := copyRequestedOutputs(outputHostDir, outputRequests); err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -461,6 +495,39 @@ func validateOutputRequests(code string, reqs []outputRequest) error {
 		}
 	}
 	return nil
+}
+
+// copyOutputTreeContents copies everything under srcDir into destDir,
+// preserving relative paths and overwriting anything already there at the
+// same relative path. Used by --output-dir: unlike copyRequestedOutputs
+// (specific declared relpaths, known ahead of time), the whole point here is
+// that filenames are only known at runtime, so it copies whatever the
+// container actually produced rather than named files. Overwrite matches
+// what a live mount would have done — running the same fraglet twice
+// against the same --output-dir naturally replaces same-named files, the
+// same as invoking the wrapped tool locally would.
+func copyOutputTreeContents(srcDir, destDir string) error {
+	return filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		destPath := filepath.Join(destDir, rel)
+		if d.IsDir() {
+			return os.MkdirAll(destPath, 0o755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(destPath, data, 0o644)
+	})
 }
 
 func copyRequestedOutputs(outputHostDir string, reqs []outputRequest) error {
@@ -954,10 +1021,11 @@ Flags:
         is passed — a script that writes its declared output always runs. Without --output the
         file is produced then discarded; a stderr note names what you could have copied out.
   --output-dir string
-        Mount this host directory writable at /output instead of the declared-output=/--output
-        dance — for wrapping a real CLI tool whose output filename isn't known ahead of time
-        (an explicit -o flag it's passed, or its own default naming). Files land directly, live;
-        no declaration, no copy-out step. Mutually exclusive with --output.
+        Copy everything the fraglet writes to /output into this host directory after the run,
+        instead of the declared-output=/--output dance — for wrapping a real CLI tool whose
+        output filename isn't known ahead of time (an explicit -o flag it's passed, or its own
+        default naming). No declaration needed; same-named files are overwritten, same as a
+        locally installed tool would. Mutually exclusive with --output.
   -e string
         Environment variable to forward into container (repeatable)
         Use -e FOO to forward host value, -e FOO=bar for explicit value
