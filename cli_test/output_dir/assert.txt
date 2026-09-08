@@ -1,0 +1,11 @@
+=== Test 1: filename chosen at runtime, no output= declaration needed ===
+wrote custom-name.txt
+custom-name.txt exists: yes
+hi
+
+=== Test 2: no arg at all -- the script's own default name still lands ===
+wrote default.txt
+default.txt exists: yes
+
+=== Test 3: --output-dir and --output are mutually exclusive ===
+--output-dir and --output are mutually exclusive: --output-dir already mounts a real, live directory, so there's nothing left to declare or copy out

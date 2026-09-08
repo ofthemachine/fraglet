@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/ofthemachine/fraglet/pkg/fraglet"
@@ -35,6 +36,10 @@ func (e *Executor) ExecuteWithArgs(args []string) (int, error) {
 
 // executeWithArgs is the shared implementation
 func (e *Executor) executeWithArgs(args []string) (int, error) {
+	if e.cfg.Execution != nil && e.cfg.Execution.Argv {
+		return e.executeArgvMode(args)
+	}
+
 	// Determine the command and arguments to execute
 	var cmdPath string
 	var cmdArgs []string
@@ -87,4 +92,51 @@ func (e *Executor) executeWithArgs(args []string) (int, error) {
 // not be a local file (e.g. a command on PATH).
 func (e *Executor) makeExecutable(file string) error {
 	return os.Chmod(file, 0755)
+}
+
+// executeArgvMode runs Execution.Path directly, no shell involved either
+// way. When a fraglet body is mounted (a real fragletc invocation — inline
+// -c, a script file, or a self-exec "#!/usr/bin/env -S fragletc ..."
+// script), the body is expanded to a literal argv with fraglet.ExpandArgv
+// and its own declared params/positional args. With nothing mounted (a
+// plain `docker run image <args>`, no fragletc involved at all), args pass
+// straight through unmodified — the same "just run the binary" behavior
+// script mode already gives a fixed execution.path, so a shell-less image
+// works both as a fragletc target and as an ordinary CLI container.
+func (e *Executor) executeArgvMode(args []string) (int, error) {
+	if e.cfg.Execution.Path == "" {
+		return 1, fmt.Errorf("argv mode: execution.path is required")
+	}
+
+	cmdArgs := args
+	if body, err := os.ReadFile(e.cfg.FragletTempPath); err == nil {
+		expanded, err := fraglet.ExpandArgv(string(body), args, os.LookupEnv)
+		if err != nil {
+			return 1, err
+		}
+
+		// The body's own first word should name the configured binary —
+		// catches an author mistake early (invoking the wrong tool, a
+		// typo) rather than silently exec'ing execution.path with a
+		// confusing, mismatched argv.
+		wantName := filepath.Base(e.cfg.Execution.Path)
+		if got := expanded[0]; got != wantName && got != e.cfg.Execution.Path {
+			return 1, fmt.Errorf("argv mode: body invokes %q, but execution.path is %q", got, e.cfg.Execution.Path)
+		}
+		cmdArgs = expanded[1:]
+	} else if !os.IsNotExist(err) {
+		return 1, fmt.Errorf("argv mode: reading fraglet body at %s: %w", e.cfg.FragletTempPath, err)
+	}
+
+	cmd := exec.Command(e.cfg.Execution.Path, cmdArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	if err := cmd.Run(); err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			return exitError.ExitCode(), nil
+		}
+		return 1, err
+	}
+	return 0, nil
 }

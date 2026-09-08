@@ -1,0 +1,16 @@
+=== Test 1: bare dest, no '=', not the declared name -- shorthand applies ===
+script ran
+fragletc: copied result.txt -> my-name.txt
+my-name.txt exists: yes
+hello
+
+=== Test 2: the real declared name still works, unchanged ===
+script ran
+fragletc: copied result.txt -> ./result.txt
+result.txt exists: yes
+
+=== Test 3: explicit relpath=dest with a WRONG relpath is a real error, not silently reinterpreted ===
+--output "wrong.txt": not declared (declared: result.txt)
+
+=== Test 4: two declared outputs -- ambiguous, shorthand does NOT apply ===
+--output "my-name.txt": not declared (declared: first.txt, second.txt)

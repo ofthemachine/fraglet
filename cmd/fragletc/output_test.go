@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/ofthemachine/fraglet/pkg/fraglet"
 )
 
 func TestParseOutputRequests(t *testing.T) {
@@ -160,5 +162,49 @@ func TestCopyRequestedOutputs_NonRegularSourceIsError(t *testing.T) {
 	reqs := []outputRequest{{RelPath: "series.csv", Dest: dest}}
 	if err := copyRequestedOutputs(outDir, reqs); err == nil {
 		t.Fatal("expected error when source is not a regular file")
+	}
+}
+
+func TestResolveSingleOutputShorthand_BareDestBecomesSoleRelPath(t *testing.T) {
+	reqs, _ := parseOutputRequests([]string{"my-photo.png"})
+	declared := []fraglet.OutputDecl{{RelPath: "meme.png"}}
+
+	got := resolveSingleOutputShorthand(reqs, declared)
+
+	if len(got) != 1 || got[0].RelPath != "meme.png" || got[0].Dest != "my-photo.png" {
+		t.Fatalf("got %+v, want RelPath=meme.png Dest=my-photo.png", got)
+	}
+}
+
+func TestResolveSingleOutputShorthand_KnownRelPathUntouched(t *testing.T) {
+	reqs, _ := parseOutputRequests([]string{"meme.png"})
+	declared := []fraglet.OutputDecl{{RelPath: "meme.png"}}
+
+	got := resolveSingleOutputShorthand(reqs, declared)
+
+	if len(got) != 1 || got[0].RelPath != "meme.png" || got[0].Dest != "./meme.png" {
+		t.Fatalf("got %+v, want the normal default-dest form unchanged", got)
+	}
+}
+
+func TestResolveSingleOutputShorthand_ExplicitMismatchLeftForValidationError(t *testing.T) {
+	reqs, _ := parseOutputRequests([]string{"wrong.png=out.png"})
+	declared := []fraglet.OutputDecl{{RelPath: "meme.png"}}
+
+	got := resolveSingleOutputShorthand(reqs, declared)
+
+	if len(got) != 1 || got[0].RelPath != "wrong.png" {
+		t.Fatalf("got %+v, want the explicit mismatch left alone (not silently reinterpreted)", got)
+	}
+}
+
+func TestResolveSingleOutputShorthand_MultipleDeclaredIsAmbiguousLeftAlone(t *testing.T) {
+	reqs, _ := parseOutputRequests([]string{"my-photo.png"})
+	declared := []fraglet.OutputDecl{{RelPath: "meme.png"}, {RelPath: "log.txt"}}
+
+	got := resolveSingleOutputShorthand(reqs, declared)
+
+	if len(got) != 1 || got[0].RelPath != "my-photo.png" {
+		t.Fatalf("got %+v, want left alone when >1 output declared (ambiguous)", got)
 	}
 }

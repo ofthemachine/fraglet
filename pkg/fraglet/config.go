@@ -22,6 +22,13 @@ type ModeConfig struct {
 // EntrypointExecutionConfig defines code execution settings
 type EntrypointExecutionConfig struct {
 	Path string `json:"path,omitempty" yaml:"path,omitempty"`
+	// Argv, when true, skips file injection entirely: the mounted fraglet
+	// body (after its header is stripped) is treated as one command line,
+	// expanded to a literal argv by ExpandArgv, and exec'd against Path
+	// directly — no shell, no scaffold file to inject into. For containers
+	// with no interpreter at all (FROM scratch: a single static binary
+	// plus fraglet-entrypoint).
+	Argv bool `json:"argv,omitempty" yaml:"argv,omitempty"`
 }
 
 // EntrypointConfig describes how to inject, store, and execute fraglets inside a container.

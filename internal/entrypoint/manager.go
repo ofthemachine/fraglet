@@ -19,8 +19,16 @@ func NewManager(cfg *fraglet.EntrypointConfig) *Manager {
 	}
 }
 
-// Process handles the complete fraglet injection process
+// Process handles the complete fraglet injection process. In argv mode
+// (Execution.Argv) there is no scaffold file to inject into — the mounted
+// fraglet body is read and exec'd directly by the executor — so injection
+// is skipped entirely; the file is left in place at FragletTempPath for the
+// executor to read.
 func (m *Manager) Process() error {
+	if m.cfg.Execution != nil && m.cfg.Execution.Argv {
+		return nil
+	}
+
 	fragletPath := m.cfg.FragletTempPath
 	if fragletPath == "" {
 		return nil

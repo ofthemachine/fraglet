@@ -15,6 +15,8 @@ These tests verify:
 - `--fraglet-help` and `fraglet-meta:` parameter declarations (shebang files + `-c`, dedup, errors); `-p` / `--param` / `--fraglet-help` stripped from argv anywhere before `--`
 - Error handling and validation
 - `output=` declarations + `--output <relpath>[=hostdest]`: `/output` mounts whenever any output= is declared (independent of `--output`); every declared output not named by `--output` is reported as discarded, never silently dropped or silently kept
+- `--output-dir <hostdir>`: mounts a real host directory writable at `/output` with no `output=` declaration needed — for a fraglet whose output filename is only known at runtime; mutually exclusive with `--output`
+- `--output <dest>` shorthand: a bare, unrecognized relpath with exactly one `output=` declared is treated as that output's destination — no need to repeat the fraglet's own declared filename when there's nothing to disambiguate; left alone (real "not declared" error) when >1 output is declared or the caller wrote an explicit `relpath=dest`
 - `param=<alias>:file`: a file-shaped param's CLI value is a host path, mounted read-only at the fixed container path `/input/<alias>` (never the host path itself); multiple file params mount independently; a missing host file fails before the container starts
 
 ## Structure
@@ -28,6 +30,8 @@ cli_test/
   fraglet_help/     - --fraglet-help + fraglet-meta (multi-scenario act/assert)
   errors/           - Error handling tests
   output_declared/  - output= + --output (no-flag POLA case, partial requests, full requests)
+  output_dir/       - --output-dir (runtime-chosen filenames, default naming, mutual exclusion with --output)
+  output_shorthand/ - --output <dest> single-output shorthand (no relpath needed when unambiguous)
   param_file/       - param=<alias>:file (host file mounted read-only at /input/<alias>)
   cli_test.go       - Test harness using clitest
 ```

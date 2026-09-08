@@ -143,6 +143,7 @@ func main() {
 	fragletPath := flag.String("fraglet-path", defaultFragletPath, "Path where code is mounted in container")
 	mode := flag.String("mode", "", "Fraglet mode (sets FRAGLET_MODE=mode)")
 	inlineCode := flag.String("c", "", "Program passed in as string (like python -c)")
+	outputDir := flag.String("output-dir", "", "Mount this host directory writable at /output — for a fraglet whose output filename isn't known ahead of time (e.g. wrapping a real CLI tool's own -o/default naming). Files land directly, live; skips declared-output= validation and --output's copy-out step entirely. Mutually exclusive with --output.")
 	var envFlags envListFlag
 	flag.Var(&envFlags, "e", "Environment variable to forward (repeatable, e.g. -e FOO -e BAR=val)")
 
@@ -188,13 +189,24 @@ func main() {
 		os.Exit(2)
 	}
 
+	if *outputDir != "" && len(outputRequests) > 0 {
+		fmt.Fprintln(os.Stderr, "--output-dir and --output are mutually exclusive: --output-dir already mounts a real, live directory, so there's nothing left to declare or copy out")
+		os.Exit(2)
+	}
+
 	// Mount /output whenever the fraglet itself declares output= — the
 	// script's own contract, not whether the caller also asked for a copy
 	// via --output. Without this, a script that declares (and unconditionally
 	// writes) a declared output fails outright when run with no flags at all,
 	// which violates the fraglet's own self-description (POLA).
+	//
+	// None of this applies in --output-dir mode: there's no fixed relpath to
+	// declare or validate against when the fraglet is wrapping a real CLI
+	// tool that names its own output files (explicit -o, or its own
+	// default) — the caller's directory is mounted live, whatever lands
+	// there is already exactly where they asked for it.
 	var declaredOutputs []fraglet.OutputDecl
-	if scriptFile != "" || *inlineCode != "" {
+	if *outputDir == "" && (scriptFile != "" || *inlineCode != "") {
 		code, codeErr := loadCodeForValidation(*inlineCode, scriptFile)
 		switch {
 		case codeErr != nil && len(outputRequests) > 0:
@@ -203,6 +215,7 @@ func main() {
 		case codeErr == nil:
 			declaredOutputs = fraglet.ParseOutputDecls(code)
 			if len(outputRequests) > 0 {
+				outputRequests = resolveSingleOutputShorthand(outputRequests, declaredOutputs)
 				if err := validateOutputRequests(code, outputRequests); err != nil {
 					fmt.Fprintf(os.Stderr, "%v\n", err)
 					os.Exit(2)
@@ -214,7 +227,19 @@ func main() {
 	}
 
 	var outputHostDir string
-	if len(declaredOutputs) > 0 || len(outputRequests) > 0 {
+	switch {
+	case *outputDir != "":
+		abs, err := filepath.Abs(*outputDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "--output-dir %q: %v\n", *outputDir, err)
+			os.Exit(2)
+		}
+		if err := os.MkdirAll(abs, 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "--output-dir %q: %v\n", *outputDir, err)
+			os.Exit(1)
+		}
+		outputHostDir = abs
+	case len(declaredOutputs) > 0 || len(outputRequests) > 0:
 		dir, err := os.MkdirTemp("", "fragletc-output-*")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -244,7 +269,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if exitCode == 0 {
+	if exitCode == 0 && *outputDir == "" {
 		if len(outputRequests) > 0 {
 			if err := copyRequestedOutputs(outputHostDir, outputRequests); err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -325,12 +350,19 @@ func printUndeliveredOutputsHint(outputHostDir string, declared []fraglet.Output
 type outputRequest struct {
 	RelPath string
 	Dest    string
+	// hadExplicitDest is true for "relpath=dest", false for a bare
+	// "relpath" (dest defaulted). Distinguishes the two for
+	// resolveSingleOutputShorthand below: a bare token that isn't a known
+	// relpath might be shorthand for "the sole output's destination";
+	// an explicit relpath=dest that doesn't match a known relpath is just
+	// a mistake and should surface the normal "not declared" error.
+	hadExplicitDest bool
 }
 
 func parseOutputRequests(raw []string) ([]outputRequest, error) {
 	var reqs []outputRequest
 	for _, s := range raw {
-		relPath, dest, _ := strings.Cut(s, "=")
+		relPath, dest, hadEq := strings.Cut(s, "=")
 		relPath = strings.TrimSpace(relPath)
 		if relPath == "" {
 			return nil, fmt.Errorf("--output: empty relpath in %q", s)
@@ -341,9 +373,35 @@ func parseOutputRequests(raw []string) ([]outputRequest, error) {
 		if dest == "" {
 			dest = "./" + relPath
 		}
-		reqs = append(reqs, outputRequest{RelPath: relPath, Dest: dest})
+		reqs = append(reqs, outputRequest{RelPath: relPath, Dest: dest, hadExplicitDest: hadEq})
 	}
 	return reqs, nil
+}
+
+// resolveSingleOutputShorthand lets a bare "--output <dest>" (no "=", and
+// not itself a declared relpath) mean "the fraglet's one declared output,
+// saved as <dest>", when it declares exactly one. There is nothing to
+// disambiguate in that case, so making the caller repeat the fraglet's own
+// internal filename back to it is pure friction, not a safety check —
+// left alone whenever more than one output is declared (genuinely
+// ambiguous) or the request already names a real declared relpath, or the
+// caller wrote an explicit "relpath=dest" (a mismatched explicit relpath is
+// a real mistake and should surface the normal "not declared" error, not
+// be silently reinterpreted).
+func resolveSingleOutputShorthand(reqs []outputRequest, declared []fraglet.OutputDecl) []outputRequest {
+	if len(declared) != 1 {
+		return reqs
+	}
+	sole := declared[0].RelPath
+	out := make([]outputRequest, len(reqs))
+	for i, r := range reqs {
+		if r.hadExplicitDest || r.RelPath == sole {
+			out[i] = r
+			continue
+		}
+		out[i] = outputRequest{RelPath: sole, Dest: r.RelPath, hadExplicitDest: true}
+	}
+	return out
 }
 
 // validateOutputRelPath rejects absolute paths and any relpath that could
@@ -890,9 +948,16 @@ Flags:
         Copy one declared output= file out after a successful run (repeatable; any position
         before "--"). relpath must match a fraglet-meta output= declaration. hostdest defaults
         to ./relpath. Never a directory dump — always a named, explicit file.
+        If the fraglet declares exactly one output=, relpath may be omitted: a bare
+        "--output <dest>" is shorthand for "the one declared output, saved as <dest>".
         /output is mounted whenever the fraglet declares any output=, whether or not --output
         is passed — a script that writes its declared output always runs. Without --output the
         file is produced then discarded; a stderr note names what you could have copied out.
+  --output-dir string
+        Mount this host directory writable at /output instead of the declared-output=/--output
+        dance — for wrapping a real CLI tool whose output filename isn't known ahead of time
+        (an explicit -o flag it's passed, or its own default naming). Files land directly, live;
+        no declaration, no copy-out step. Mutually exclusive with --output.
   -e string
         Environment variable to forward into container (repeatable)
         Use -e FOO to forward host value, -e FOO=bar for explicit value

@@ -49,6 +49,14 @@ execution:
   # If omitted, the entrypoint passes through CLI args as the command.
   path: /hello-world/hello-world.sh
 
+  # Optional: argv mode. Skips file injection entirely — for images with no
+  # interpreter at all (FROM scratch: a single static binary plus
+  # fraglet-entrypoint, no shell). The mounted fraglet body must be exactly
+  # one command line; it's expanded to a literal argv ($VAR/${VAR}/$@/$1..$9,
+  # 'single'/"double" quoting, no shell operators) and exec'd against `path`
+  # directly. With no fraglet mounted, CLI args pass through unmodified.
+  # argv: true
+
 # Mode-specific overrides. Selected at runtime via FRAGLET_MODE env var.
 # Each mode can override injection, guide, essence, and/or execution.
 # Fields not specified in a mode inherit from the root config above.
