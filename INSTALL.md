@@ -1,6 +1,6 @@
 # Installing fragletc
 
-**fragletc** runs code fragments in isolated containers across 90+ languages. It ships as a single binary with built-in MCP server support for AI tool integration.
+**fragletc** runs code fragments in isolated containers across 90+ languages. It ships as a single binary.
 
 ## Prerequisites
 
@@ -38,61 +38,6 @@ FRAGLETC_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com
 fragletc --help
 fragletc --vein=python -c 'print("hello from fraglet")'
 ```
-
-## MCP Server Setup
-
-fragletc includes a built-in MCP (Model Context Protocol) server. Run it with:
-
-```sh
-fragletc mcp
-```
-
-This starts the server over stdio, compatible with any MCP client.
-
-### Claude Desktop
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
-
-```json
-{
-  "mcpServers": {
-    "fraglet": {
-      "command": "fragletc",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-Restart Claude Desktop after saving.
-
-### Cursor
-
-**One-click install:**
-
-[Install fraglet in Cursor](cursor://anysphere.cursor-deeplink/mcp/install?name=fraglet&config=eyJjb21tYW5kIjoiZnJhZ2xldGMiLCJhcmdzIjpbIm1jcCJdfQ==)
-
-**Manual setup** — add to `.cursor/mcp.json` (project-level) or `~/.cursor/mcp.json` (global):
-
-```json
-{
-  "mcpServers": {
-    "fraglet": {
-      "command": "fragletc",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-### MCP Tools
-
-The MCP server exposes two tools:
-
-| Tool | Description |
-|------|-------------|
-| `run` | Execute code snippets in any supported language container |
-| `language_help` | Get the authoring guide for a language (syntax, libraries, patterns) |
 
 ## Manual Install
 
@@ -153,10 +98,3 @@ If you're behind a firewall or proxy, Docker may not be able to pull images. Pre
 ```sh
 fragletc refresh python
 ```
-
-### MCP server not connecting
-
-1. Verify the binary path is absolute or in PATH
-2. Check the JSON syntax in your MCP config file
-3. Restart your MCP client (Claude Desktop / Cursor) after config changes
-4. Test the server manually: `echo '{}' | fragletc mcp` should produce JSON-RPC output

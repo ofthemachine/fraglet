@@ -12,8 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/ofthemachine/fraglet/mcp/tools"
 	"github.com/ofthemachine/fraglet/pkg/embed"
 	"github.com/ofthemachine/fraglet/pkg/engine"
 	"github.com/ofthemachine/fraglet/pkg/essence"
@@ -126,9 +124,6 @@ func main() {
 			return
 		case "essence":
 			handleEssence()
-			return
-		case "mcp":
-			handleMCP()
 			return
 		case "version":
 			handleVersion()
@@ -955,43 +950,6 @@ func handleEssence() {
 	os.Exit(result.ExitCode)
 }
 
-func handleMCP() {
-	mcpFlags := flag.NewFlagSet("mcp", flag.ExitOnError)
-	savePath := mcpFlags.String("save", "", "Directory to persist successfully run fraglets (content-addressed); optional")
-	mcpFlags.Usage = func() {
-		fmt.Fprintf(os.Stderr, `Usage: fragletc mcp [options]
-
-Start the MCP (Model Context Protocol) server over stdio.
-
-Options:
-  --save path   If set, successfully run fraglets are persisted under path (by lang and content hash).
-                Use with Cursor, Claude Desktop, or any MCP-compatible client.
-
-Examples:
-  fragletc mcp
-  fragletc mcp --save=$HOME/.fraglet/store
-`)
-	}
-	_ = mcpFlags.Parse(os.Args[2:])
-	if *savePath != "" {
-		tools.SetRunSavePath(expandSavePath(*savePath))
-	}
-	tools.Server.Run(context.Background(), &mcp.StdioTransport{})
-}
-
-func expandSavePath(path string) string {
-	path = os.ExpandEnv(path)
-	if path == "~" || strings.HasPrefix(path, "~/") {
-		if home, err := os.UserHomeDir(); err == nil {
-			if path == "~" {
-				return home
-			}
-			return filepath.Join(home, path[2:])
-		}
-	}
-	return path
-}
-
 func usage() {
 	fmt.Fprintf(os.Stderr, `Usage: fragletc [flags] [script-file] [script-args...]
        fragletc refresh [options] [vein-name]
@@ -1050,8 +1008,6 @@ Stdin:
   Cat data.csv | ./process.py --format=json
 
 Subcommands:
-  mcp           Start the MCP (Model Context Protocol) server over stdio
-                Use with Claude Desktop, Cursor, or any MCP-compatible client
   refresh       Refresh (pull) container images for veins
                 Use "fragletc refresh --help" for details
   guide         Show fraglet guide (vein registry or --image; flags and vein in any order)

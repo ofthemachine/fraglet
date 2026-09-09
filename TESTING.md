@@ -53,6 +53,4 @@ cd /path/to/100hellos && ats/fraglet/verify.sh
 - `FRAGLET_VEIN_TAG_DISCOVERY_ORDER=local,latest` — tries `:local` first, falls back to `:latest`. Best for mixed environments where some images were rebuilt locally and others weren’t.
 - `FRAGLET_VEINS_FORCE_TAG=local` — forces ALL images to `:local` unconditionally. Use when every image has a local build.
 
-**MCP:** The `fragletc mcp` server uses the same vein resolution; ensure the MCP server process is started with the env var set (e.g. in Cursor’s MCP config or the shell that launches it) so `language_help` and `run` use your local images.
-
 See [veins_test/README.md](veins_test/README.md) for veins_test structure and [entrypoint/releases/](entrypoint/releases/) for entrypoint changelog (e.g. v0.4.0 stdin passthrough).

@@ -4,14 +4,12 @@ on:
   push:
     paths:
       - 'cmd/fragletc/**'
-      - 'mcp/**'
       - 'pkg/**'
       - 'go.mod'
       - 'go.sum'
   pull_request:
     paths:
       - 'cmd/fragletc/**'
-      - 'mcp/**'
       - 'pkg/**'
       - 'go.mod'
       - 'go.sum'
