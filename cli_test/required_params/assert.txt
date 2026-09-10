@@ -1,0 +1,28 @@
+=== Test 1: one required param, none supplied ===
+missing required parameter(s): name
+
+Parameters for <inline>:
+  name         (required)
+
+See --fraglet-help for the full description.
+
+=== Test 2: two required params, only one supplied ===
+missing required parameter(s): greeting
+
+Parameters for <inline>:
+  greeting     (required)
+  name         (required)
+
+See --fraglet-help for the full description.
+
+=== Test 3: all required params supplied -- validation passes, falls through to the next error (no image) ===
+Error: no container target. Specify --vein or --image
+
+=== Test 4: optional params are never required ===
+Error: no container target. Specify --vein or --image
+
+=== Test 5: an unknown -p alias surfaces its own error immediately, not a bogus missing-required one ===
+param "ghost": not declared in fraglet-meta
+
+=== Test 6: required + default= together -- the default exempts it, not a contradiction ===
+Error: no container target. Specify --vein or --image

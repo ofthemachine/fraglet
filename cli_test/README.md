@@ -18,6 +18,8 @@ These tests verify:
 - `--output-dir <hostdir>`: copies everything written to `/output` into `hostdir` after the run, with no `output=` declaration needed — for a fraglet whose output filename is only known at runtime; mutually exclusive with `--output`
 - `--output <dest>` shorthand: a bare, unrecognized relpath with exactly one `output=` declared is treated as that output's destination — no need to repeat the fraglet's own declared filename when there's nothing to disambiguate; left alone (real "not declared" error) when >1 output is declared or the caller wrote an explicit `relpath=dest`
 - `param=<alias>:file`: a file-shaped param's CLI value is a host path, mounted read-only at the fixed container path `/input/<alias>` (never the host path itself); multiple file params mount independently; a missing host file fails before the container starts
+- `param=<alias>:required` is enforced host-side before any container starts: a missing required param prints the same listing `--fraglet-help` shows and exits 2, rather than silently expanding to `""` wherever the fraglet body references it and letting the wrapped tool's own (often confusing) error surface instead. `default=` on the same decl exempts it — a default already satisfies "the caller must supply this" (`fraglet.MissingRequired`, shared with operon's own `internal/runparams`, so the exemption rule can't drift between the two). `required` is checked only against `-p`/`--param` values; a value supplied via raw `-e` env-forwarding is invisible to it by design (`-e` and `param=` are deliberately separate mechanisms).
+- `default=` itself is declarative only in this CLI — it widens `--fraglet-help`'s listing and exempts `required`, but fragletc never injects the default value into the container's env. Every fraglet in this repo that declares one already implements its own fallback in the body (e.g. `${ENGINE:-pdflatex}`); a consumer that needs the default value actually materialized and captured (operon's memoization key) folds it itself on top of the same `fraglet.ParamDecl.Default()` primitive.
 - Relative output paths (`--output-dir=.` baked into a shebang, `--output=<dest>`) resolve against the caller's cwd at invocation, never the directory the script itself lives in — a self-exec script at `skills/fun/meme.sh` behaves like a locally installed tool, not like its output depends on where it's checked into the repo
 
 ## Structure
@@ -35,6 +37,7 @@ cli_test/
   output_shorthand/ - --output <dest> single-output shorthand (no relpath needed when unambiguous)
   output_relative_to_caller/ - relative --output-dir/--output resolve against the caller's cwd, not the script's own directory
   param_file/       - param=<alias>:file (host file mounted read-only at /input/<alias>)
+  required_params/  - param=<alias>:required enforced before any container starts
   cli_test.go       - Test harness using clitest
 ```
 

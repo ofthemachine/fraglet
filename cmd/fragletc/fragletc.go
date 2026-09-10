@@ -190,37 +190,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	// Mount /output whenever the fraglet itself declares output= — the
-	// script's own contract, not whether the caller also asked for a copy
-	// via --output. Without this, a script that declares (and unconditionally
-	// writes) a declared output fails outright when run with no flags at all,
-	// which violates the fraglet's own self-description (POLA).
-	//
-	// None of this applies in --output-dir mode: there's no fixed relpath to
-	// declare or validate against when the fraglet is wrapping a real CLI
-	// tool that names its own output files (explicit -o, or its own
-	// default) — the caller's directory is mounted live, whatever lands
-	// there is already exactly where they asked for it.
-	var declaredOutputs []fraglet.OutputDecl
-	if *outputDir == "" && (scriptFile != "" || *inlineCode != "") {
-		code, codeErr := loadCodeForValidation(*inlineCode, scriptFile)
-		switch {
-		case codeErr != nil && len(outputRequests) > 0:
-			fmt.Fprintf(os.Stderr, "%v\n", codeErr)
-			os.Exit(1)
-		case codeErr == nil:
-			declaredOutputs = fraglet.ParseOutputDecls(code)
-			if len(outputRequests) > 0 {
-				outputRequests = resolveSingleOutputShorthand(outputRequests, declaredOutputs)
-				if err := validateOutputRequests(code, outputRequests); err != nil {
-					fmt.Fprintf(os.Stderr, "%v\n", err)
-					os.Exit(2)
-				}
-			}
-		}
-		// codeErr != nil with no --output: let engine.Run surface the
-		// real "no code source" / "file not found" error naturally below.
-	}
+	declaredOutputs, outputRequests := preflightValidate(*inlineCode, scriptFile, paramStrs, *outputDir, outputRequests)
 
 	// finalOutputDir is set for --output-dir: the caller's own real
 	// directory, which fragletc never mounts or chmods directly (it isn't
@@ -452,6 +422,58 @@ func validateOutputRelPath(relPath string) error {
 		}
 	}
 	return nil
+}
+
+// preflightValidate loads code (if any) and enforces, before any container
+// starts, everything code's header declares about its own contract:
+// param=...:required (validateParams) and output=... (validateOutputRequests).
+// Exits the process directly on violation, same as the rest of main()'s
+// flag handling — there's no error to propagate past this point, only a
+// process that either continues or has already stopped.
+//
+// Returns the declared outputs and outputRequests (resolveSingleOutputShorthand
+// may have rewritten it); both come back unchanged when there's no code to
+// load, or when code fails to load and no --output was requested (in which
+// case engine.Run surfaces the real "no code source" / "file not found"
+// error naturally once it tries to run).
+func preflightValidate(inlineCode, scriptFile string, paramStrs []string, outputDir string, outputRequests []outputRequest) ([]fraglet.OutputDecl, []outputRequest) {
+	if scriptFile == "" && inlineCode == "" {
+		return nil, outputRequests
+	}
+
+	code, codeErr := loadCodeForValidation(inlineCode, scriptFile)
+	if codeErr != nil {
+		if len(outputRequests) > 0 {
+			fmt.Fprintf(os.Stderr, "%v\n", codeErr)
+			os.Exit(1)
+		}
+		return nil, outputRequests
+	}
+
+	// Required-param validation applies regardless of --output-dir — unlike
+	// declared-output tracking below, it has nothing to do with where the
+	// container's output lands.
+	if err := validateParams(code, paramStrs, fragletHelpLabel(scriptFile)); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(2)
+	}
+
+	// --output-dir mounts /output live and copies out whatever lands there:
+	// there's no fixed relpath to declare or validate against when the
+	// fraglet is wrapping a real CLI tool that names its own output files.
+	if outputDir != "" {
+		return nil, outputRequests
+	}
+
+	declaredOutputs := fraglet.ParseOutputDecls(code)
+	if len(outputRequests) > 0 {
+		outputRequests = resolveSingleOutputShorthand(outputRequests, declaredOutputs)
+		if err := validateOutputRequests(code, outputRequests); err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(2)
+		}
+	}
+	return declaredOutputs, outputRequests
 }
 
 // loadCodeForValidation reads the full source (inline or file) so --output
@@ -710,6 +732,15 @@ func handleFragletHelp(scriptFile, inlineCode string) {
 	}
 
 	fmt.Printf("Parameters for %s:\n", label)
+	writeParamList(os.Stdout, decls)
+	printFragletInvokeHint(label)
+}
+
+// writeParamList prints one line per declared param (required/optional,
+// default, env var override) — the body of --fraglet-help's listing, also
+// reused by the missing-required-param error so both surfaces show the
+// exact same shape.
+func writeParamList(w io.Writer, decls []fraglet.ParamDecl) {
 	for _, d := range decls {
 		var parts []string
 		if d.IsRequired() {
@@ -721,9 +752,60 @@ func handleFragletHelp(scriptFile, inlineCode string) {
 			parts = append(parts, "default: "+def)
 		}
 		modStr := strings.Join(parts, ", ")
-		fmt.Printf("  %-12s (%s)%s\n", d.Alias, modStr, envVarArrow(d))
+		fmt.Fprintf(w, "  %-12s (%s)%s\n", d.Alias, modStr, envVarArrow(d))
 	}
-	printFragletInvokeHint(label)
+}
+
+// validateParams checks, host-side and before any container runs, that
+// paramStrs actually resolves against code's declared params: every alias
+// is known, and every param= declared "required" (and without a default= —
+// a default already satisfies "the caller must supply this", see
+// fraglet.MissingRequired) has a value.
+//
+// Without this, a missing required param silently expands to an empty
+// string wherever the fraglet body references it (argv mode's ExpandArgv
+// and script-mode env vars both treat an unset var as ""), and whatever
+// error surfaces comes from deep inside the wrapped tool instead of from
+// fragletc itself — e.g. a confusing usage dump for a CLI the caller never
+// invoked directly.
+//
+// engine.Run repeats this same parse+resolve internally to build the
+// container's transport env — that redundant pass is deliberate, not an
+// oversight: engine.RunOptions.ParamStrs is a shared shape two other
+// callers outside this binary (operon's mesh/agent2 executors) also
+// construct directly, so re-typing it as pre-resolved Params would ripple
+// into a second repo for the sake of skipping a few microseconds of work
+// on a handful of strings. What must not exist twice is the *policy* — the
+// "required unless defaulted" rule lives exactly once, in
+// fraglet.MissingRequired, which this and operon's own runparams.Resolve
+// both call.
+func validateParams(code string, paramStrs []string, label string) error {
+	decls := fraglet.ParseParamDecls(code)
+
+	var params fraglet.Params
+	for _, s := range paramStrs {
+		p, err := fraglet.ParseParam(s)
+		if err != nil {
+			return err
+		}
+		params = append(params, p)
+	}
+	params, err := params.ResolveAliases(decls)
+	if err != nil {
+		return err
+	}
+
+	missing := fraglet.MissingRequired(decls, params)
+	if len(missing) == 0 {
+		return nil
+	}
+
+	var buf strings.Builder
+	fmt.Fprintf(&buf, "missing required parameter(s): %s\n\n", strings.Join(missing, ", "))
+	fmt.Fprintf(&buf, "Parameters for %s:\n", label)
+	writeParamList(&buf, decls)
+	fmt.Fprintf(&buf, "\nSee --fraglet-help for the full description.")
+	return errors.New(buf.String())
 }
 
 func fragletHelpLabel(scriptFile string) string {

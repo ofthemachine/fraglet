@@ -233,3 +233,46 @@ func (ps Params) ResolveAliases(decls []ParamDecl) (Params, error) {
 	}
 	return resolved, nil
 }
+
+// MissingRequired returns the alias of every decl marked `required` that
+// params has no value for, sorted for a deterministic message. A decl that
+// also carries a default= is exempt: a default already satisfies "the
+// caller must supply this" (default= and required= together is meaningful,
+// not a contradiction — "the caller may omit it, and here's what backs
+// that omission" — so satisfying either one clears the gate). Returns nil
+// when nothing is missing.
+//
+// Only param= declarations feed this: a value supplied via a raw -e
+// env-forward is invisible here by design. -e and param= are deliberately
+// separate mechanisms (untyped passthrough vs. a declared, aliased,
+// required-checkable contract) — required is a statement about the -p
+// contract, not about "is this env var set by any means."
+//
+// This is the one place "required, unless defaulted" gets decided — every
+// caller (fragletc's CLI, operon's own invoke/solve paths) should call this
+// rather than re-deriving the same exemption rule by hand; a second,
+// independent copy of "unless it has a default" is exactly the kind of
+// special case that quietly drifts out of sync with this one.
+func MissingRequired(decls []ParamDecl, params Params) []string {
+	if len(decls) == 0 {
+		return nil
+	}
+	provided := make(map[string]struct{}, len(params))
+	for _, p := range params {
+		provided[p.EnvVar] = struct{}{}
+	}
+	var missing []string
+	for _, d := range decls {
+		if !d.IsRequired() {
+			continue
+		}
+		if _, hasDefault := d.Default(); hasDefault {
+			continue
+		}
+		if _, ok := provided[d.EnvVar]; !ok {
+			missing = append(missing, d.Alias)
+		}
+	}
+	sort.Strings(missing)
+	return missing
+}

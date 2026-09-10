@@ -1,6 +1,0 @@
-default_backend: default_local
-storage_backends:
-    default_local:
-        type: localfs
-        localfs:
-            path: .
