@@ -1,0 +1,12 @@
+=== Test 1: omitted -p gets declared default ===
+cl100k_base
+
+=== Test 2: explicit -p overrides default ===
+o200k_base
+
+=== Test 3: description= appears in --fraglet-help ===
+Parameters for <inline>:
+  settle_ms    (optional, default: 2000) — Extra wait after page load
+  url          (required) — Target page URL
+
+Pass: fragletc --vein=<vein> -p name=value ... -c '<code>'

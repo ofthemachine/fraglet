@@ -340,3 +340,26 @@ func TestResolveFileParams_DirectoryRejected(t *testing.T) {
 		t.Fatal("expected error for directory path")
 	}
 }
+
+func TestApplyDefaults(t *testing.T) {
+	decls := []ParamDecl{
+		{Alias: "encoding", EnvVar: "ENCODING", Modifiers: map[string]string{"default": "cl100k_base"}},
+		{Alias: "text", EnvVar: "TEXT", Modifiers: map[string]string{"required": ""}},
+	}
+	got := ApplyDefaults(decls, nil)
+	if len(got) != 1 || got[0].EnvVar != "ENCODING" || got[0].Value != "cl100k_base" {
+		t.Fatalf("ApplyDefaults(nil) = %+v, want ENCODING=cl100k_base", got)
+	}
+
+	provided := Params{{EnvVar: "ENCODING", Encoding: "raw", Value: "o200k_base"}}
+	got = ApplyDefaults(decls, provided)
+	if len(got) != 1 || got[0].Value != "o200k_base" {
+		t.Fatalf("explicit -p must win: %+v", got)
+	}
+
+	empty := Params{{EnvVar: "ENCODING", Encoding: "raw", Value: ""}}
+	got = ApplyDefaults(decls, empty)
+	if len(got) != 1 || got[0].Value != "" {
+		t.Fatalf("explicit empty -p must not be overwritten: %+v", got)
+	}
+}

@@ -754,7 +754,11 @@ func writeParamList(w io.Writer, decls []fraglet.ParamDecl) {
 			parts = append(parts, "default: "+def)
 		}
 		modStr := strings.Join(parts, ", ")
-		fmt.Fprintf(w, "  %-12s (%s)%s\n", d.Alias, modStr, envVarArrow(d))
+		desc := ""
+		if text, ok := d.Description(); ok {
+			desc = " — " + text
+		}
+		fmt.Fprintf(w, "  %-12s (%s)%s%s\n", d.Alias, modStr, envVarArrow(d), desc)
 	}
 }
 

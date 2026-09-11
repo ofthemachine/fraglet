@@ -276,3 +276,40 @@ func MissingRequired(decls []ParamDecl, params Params) []string {
 	sort.Strings(missing)
 	return missing
 }
+
+// ApplyDefaults appends a raw Param for every decl with default= that is
+// not already present in params. Call before ResolveAliases: injected
+// params use the uppercased alias as EnvVar, same shape ParseParam produces.
+//
+// An explicit -p alias= (including empty value) counts as provided and is
+// never overwritten. Omitted -p gets the declared default injected into
+// the transport env so the container sees it without in-script fallbacks.
+func ApplyDefaults(decls []ParamDecl, params Params) Params {
+	if len(decls) == 0 {
+		return params
+	}
+	provided := make(map[string]struct{}, len(params))
+	for _, p := range params {
+		provided[strings.ToLower(p.EnvVar)] = struct{}{}
+	}
+	out := append(Params(nil), params...)
+	for _, d := range decls {
+		def, ok := d.Default()
+		if !ok {
+			continue
+		}
+		if _, ok := provided[strings.ToLower(d.Alias)]; ok {
+			continue
+		}
+		if _, ok := provided[strings.ToLower(d.EnvVar)]; ok {
+			continue
+		}
+		out = append(out, Param{
+			EnvVar:   strings.ToUpper(d.Alias),
+			Encoding: "raw",
+			Value:    def,
+		})
+		provided[strings.ToLower(d.Alias)] = struct{}{}
+	}
+	return out
+}

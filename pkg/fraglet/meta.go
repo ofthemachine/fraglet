@@ -82,6 +82,18 @@ func (d ParamDecl) Default() (string, bool) {
 	return v, ok
 }
 
+// Description returns the param-level description (description= or d= modifier)
+// and whether one was declared.
+func (d ParamDecl) Description() (string, bool) {
+	if v, ok := d.Modifiers["description"]; ok && v != "" {
+		return v, true
+	}
+	if v, ok := d.Modifiers["d"]; ok && v != "" {
+		return v, true
+	}
+	return "", false
+}
+
 // OutputDecl represents a declared output file from the fraglet header: the
 // script writes this file, relative to the output mount, when it runs.
 type OutputDecl struct {
@@ -97,6 +109,11 @@ func (d OutputDecl) IsRequired() bool {
 
 // ParseParamDecls extracts param= tokens from a code string's header.
 // Returns declarations sorted by alias for determinism.
+//
+// A param token runs from "param=" to the next " param=" or end of line, so
+// description= values may contain spaces (and must be the last modifier):
+//
+//	#: param=settle_ms:default=2000:description=Extra wait after page load
 func ParseParamDecls(code string) []ParamDecl {
 	header, _ := SplitHeader(code)
 	var decls []ParamDecl
@@ -107,11 +124,8 @@ func ParseParamDecls(code string) []ParamDecl {
 		if !ok {
 			continue
 		}
-		for _, tok := range strings.Fields(rest) {
-			if !strings.HasPrefix(tok, "param=") {
-				continue
-			}
-			decl := parseParamToken(tok[len("param="):])
+		for _, tok := range paramTokens(rest) {
+			decl := parseParamToken(tok)
 			if decl.Alias == "" || seen[decl.Alias] {
 				continue
 			}
@@ -124,6 +138,60 @@ func ParseParamDecls(code string) []ParamDecl {
 		return decls[i].Alias < decls[j].Alias
 	})
 	return decls
+}
+
+// paramTokens splits a directive rest into param declaration bodies (the
+// text after each "param="). Tokens are delimited by " param=".
+//
+// Without description=/d=, a param body is a single Fields token so
+// trailing annotations on the same line (e.g. "param=city math:algebra")
+// stay out of the alias. With description= or d= (must be last), the body
+// runs to the next " param=" or end of line so the prose may contain spaces.
+func paramTokens(rest string) []string {
+	const prefix = "param="
+	var toks []string
+	for {
+		i := indexFieldPrefix(rest, prefix)
+		if i < 0 {
+			break
+		}
+		rest = rest[i+len(prefix):]
+		end := len(rest)
+		if j := strings.Index(rest, " "+prefix); j >= 0 {
+			end = j
+		}
+		if tok := takeParamBody(rest[:end]); tok != "" {
+			toks = append(toks, tok)
+		}
+		rest = rest[end:]
+	}
+	return toks
+}
+
+// indexFieldPrefix finds prefix at the start of a whitespace-delimited field.
+func indexFieldPrefix(s, prefix string) int {
+	if strings.HasPrefix(s, prefix) {
+		return 0
+	}
+	for i := 0; i < len(s); i++ {
+		if (s[i] == ' ' || s[i] == '\t') && strings.HasPrefix(s[i+1:], prefix) {
+			return i + 1
+		}
+	}
+	return -1
+}
+
+// takeParamBody returns one param declaration body from a chunk that may
+// still contain trailing same-line annotations when description is absent.
+func takeParamBody(chunk string) string {
+	chunk = strings.TrimSpace(chunk)
+	if chunk == "" {
+		return ""
+	}
+	if strings.Contains(chunk, ":description=") || strings.Contains(chunk, ":d=") {
+		return chunk
+	}
+	return strings.Fields(chunk)[0]
 }
 
 // ParseOutputDecls extracts output= tokens from a code string's header.
@@ -245,14 +313,24 @@ func ParseMetaDescription(code string) string {
 }
 
 // parseParamToken parses "alias[:modifier[:modifier...]]" into a ParamDecl.
+// description= (or short d=) must be last: everything after that marker is
+// the description, including spaces and colons.
 func parseParamToken(s string) ParamDecl {
+	mods := make(map[string]string)
+	if i := strings.Index(s, ":description="); i >= 0 {
+		mods["description"] = s[i+len(":description="):]
+		s = s[:i]
+	} else if i := strings.Index(s, ":d="); i >= 0 {
+		mods["d"] = s[i+len(":d="):]
+		s = s[:i]
+	}
+
 	parts := strings.Split(s, ":")
 	alias := parts[0]
 	if alias == "" {
 		return ParamDecl{}
 	}
 
-	mods := make(map[string]string)
 	for _, part := range parts[1:] {
 		if eqIdx := strings.Index(part, "="); eqIdx >= 0 {
 			mods[part[:eqIdx]] = part[eqIdx+1:]

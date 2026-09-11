@@ -167,6 +167,38 @@ func TestParseParamDecls_MultipleModifiers(t *testing.T) {
 	}
 }
 
+func TestParseParamDecls_DescriptionWithSpaces(t *testing.T) {
+	code := testutil.Unindent(`
+		#: param=settle_ms:default=2000:description=Extra wait after page load for async JS
+		#: param=url:required:d=Target page URL
+	`)
+	decls := ParseParamDecls(code)
+	if len(decls) != 2 {
+		t.Fatalf("len = %d, want 2", len(decls))
+	}
+	// sorted: settle_ms, url
+	if decls[0].Alias != "settle_ms" {
+		t.Fatalf("decls[0].Alias = %q, want settle_ms", decls[0].Alias)
+	}
+	if desc, ok := decls[0].Description(); !ok || desc != "Extra wait after page load for async JS" {
+		t.Fatalf("settle_ms description = %q/%v", desc, ok)
+	}
+	if def, ok := decls[0].Default(); !ok || def != "2000" {
+		t.Fatalf("settle_ms default = %q/%v", def, ok)
+	}
+	if desc, ok := decls[1].Description(); !ok || desc != "Target page URL" {
+		t.Fatalf("url description = %q/%v", desc, ok)
+	}
+}
+
+func TestParseParamDecls_DescriptionDoesNotStealNextParam(t *testing.T) {
+	code := `#: param=city:required:description=City name param=units:default=metric`
+	decls := ParseParamDecls(code)
+	if len(decls) != 2 {
+		t.Fatalf("len = %d, want 2 (space-delimited params still split)", len(decls))
+	}
+}
+
 func TestParseParamDecls_FileShape(t *testing.T) {
 	code := `#: param=doc:file`
 	decls := ParseParamDecls(code)

@@ -267,16 +267,17 @@ func Run(ctx context.Context, opts RunOptions) (int, error) {
 
 	// --- Parse and resolve params (including file-shaped params) ---
 	var volumes []runner.VolumeMount
-	if len(opts.ParamStrs) > 0 {
-		var params fraglet.Params
-		for _, pf := range opts.ParamStrs {
-			p, err := fraglet.ParseParam(pf)
-			if err != nil {
-				return 1, fmt.Errorf("param error: %w", err)
-			}
-			params = append(params, p)
+	decls := fraglet.ParseParamDecls(code)
+	var params fraglet.Params
+	for _, pf := range opts.ParamStrs {
+		p, err := fraglet.ParseParam(pf)
+		if err != nil {
+			return 1, fmt.Errorf("param error: %w", err)
 		}
-		decls := fraglet.ParseParamDecls(code)
+		params = append(params, p)
+	}
+	params = fraglet.ApplyDefaults(decls, params)
+	if len(params) > 0 {
 		if len(decls) > 0 {
 			params, err = params.ResolveAliases(decls)
 			if err != nil {
