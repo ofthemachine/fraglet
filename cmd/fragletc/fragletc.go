@@ -138,6 +138,7 @@ func main() {
 	image := flag.String("image", "", "Container image to use directly")
 	fragletPath := flag.String("fraglet-path", defaultFragletPath, "Path where code is mounted in container")
 	mode := flag.String("mode", "", "Fraglet mode (sets FRAGLET_MODE=mode)")
+	network := flag.String("network", "", "Container network mode (e.g. 'none', 'bridge', 'host'; defaults to 'none' when '#: network=none' is declared, otherwise Docker default bridge)")
 	inlineCode := flag.String("c", "", "Program passed in as string (like python -c)")
 	outputDir := flag.String("output-dir", "", "Copy everything the fraglet writes to /output into this host directory after the run — for a fraglet whose output filename isn't known ahead of time (e.g. wrapping a real CLI tool's own -o/default naming). No declared-output= needed: whatever lands in /output is copied out, overwriting same-named files, same as a locally installed tool would. Mutually exclusive with --output.")
 	var envFlags envListFlag
@@ -248,6 +249,7 @@ func main() {
 		ScriptArgs:    scriptArgs,
 		Stdin:         stdinReader,
 		ParamStrs:     paramStrs,
+		NetworkMode:   *network,
 		OutputHostDir: outputHostDir,
 	}
 
@@ -1075,6 +1077,8 @@ Flags:
         After "--", --fraglet-help and -p/--param pass through unchanged.
   -m, --mode string
         Fraglet mode (sets FRAGLET_MODE=mode)
+  --network string
+        Container network mode (e.g. 'none', 'bridge', 'host'; defaults to 'none' when '#: network=none' is declared, otherwise Docker default bridge)
 
 Positional:
   script-file   Path to code file (required if -c not set)

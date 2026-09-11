@@ -75,13 +75,14 @@ type ExecuteResult struct {
 // spec.Stdout/spec.Stderr when set, so a caller gets both a full string
 // (e.g. for ledger recording) and live streaming from the same run.
 func Execute(ctx context.Context, spec ExecuteSpec) (ExecuteResult, error) {
+	networkMode := resolveNetworkMode(spec.NetworkMode, spec.Code)
 	return runContainer(ctx, containerRunSpec{
 		image:          spec.Image,
 		code:           spec.Code,
 		env:            spec.Env,
 		volumes:        spec.Volumes,
 		outputHostDir:  spec.OutputHostDir,
-		networkMode:    spec.NetworkMode,
+		networkMode:    networkMode,
 		args:           spec.Args,
 		stdin:          spec.Stdin,
 		stdout:         spec.Stdout,
@@ -297,13 +298,16 @@ func Run(ctx context.Context, opts RunOptions) (int, error) {
 		envVars = append(envVars, transportEnv...)
 	}
 
+	// --- Resolve network mode ---
+	networkMode := resolveNetworkMode(opts.NetworkMode, code)
+
 	result, err := runContainer(ctx, containerRunSpec{
 		image:         containerImage,
 		code:          code,
 		env:           envVars,
 		volumes:       volumes,
 		outputHostDir: opts.OutputHostDir,
-		networkMode:   opts.NetworkMode,
+		networkMode:   networkMode,
 		args:          opts.ScriptArgs,
 		stdin:         opts.Stdin,
 		stdout:        opts.Stdout,
@@ -389,6 +393,21 @@ func resolveContainer(veinName, image, fragletPath string) (containerImage, moun
 	}
 
 	return "", "", fmt.Errorf("no container target. Specify --vein or --image")
+}
+
+// resolveNetworkMode determines the effective container network mode.
+// An explicit mode (from CLI flag or ExecuteSpec) takes precedence.
+// If unspecified, a script declaring "#: network=none" defaults to "none".
+// Otherwise, returns "" (which directs the runner to omit --network, leaving
+// Docker to its default bridge).
+func resolveNetworkMode(explicitMode, code string) string {
+	if explicitMode != "" {
+		return explicitMode
+	}
+	if fraglet.ParseNetwork(code) == "none" {
+		return "none"
+	}
+	return ""
 }
 
 func buildEnvVars(mode string, envFlags []string) []string {

@@ -1,6 +1,10 @@
 package fraglet
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ofthemachine/fraglet/internal/testutil"
+)
 
 func TestSplitHeader_ShebangAndMeta(t *testing.T) {
 	code := "#!/usr/bin/env -S fragletc --image x\n#: d=desc\n#: param=city\n\nprint(1)\nprint(2)"
@@ -250,5 +254,89 @@ func TestParseMetaDescription_ShortSentinel(t *testing.T) {
 	code := "#: d=Convert a series to CSV."
 	if got := ParseMetaDescription(code); got != "Convert a series to CSV." {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestParseNetwork(t *testing.T) {
+	tests := []struct {
+		name string
+		code string
+		want string
+	}{
+		{
+			name: "empty code",
+			code: "",
+			want: "",
+		},
+		{
+			name: "no network declaration",
+			code: testutil.Unindent(`
+				#!/usr/bin/env -S fragletc
+				#: param=city
+
+				print(1)
+			`),
+			want: "",
+		},
+		{
+			name: "network none",
+			code: testutil.Unindent(`
+				#!/usr/bin/env -S fragletc
+				#: network=none
+
+				print(1)
+			`),
+			want: "none",
+		},
+		{
+			name: "network required",
+			code: testutil.Unindent(`
+				#!/usr/bin/env -S fragletc
+				#: network=required
+
+				print(1)
+			`),
+			want: "required",
+		},
+		{
+			name: "case insensitive",
+			code: testutil.Unindent(`
+				#: network=NONE
+			`),
+			want: "none",
+		},
+		{
+			name: "legacy sentinel",
+			code: testutil.Unindent(`
+				# fraglet-meta: network=none
+			`),
+			want: "none",
+		},
+		{
+			name: "body directive ignored",
+			code: testutil.Unindent(`
+				#!/usr/bin/env -S fragletc
+
+				print(1)
+				#: network=none
+			`),
+			want: "",
+		},
+		{
+			name: "multiple declarations last wins",
+			code: testutil.Unindent(`
+				#: network=required
+				#: network=none
+			`),
+			want: "none",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ParseNetwork(tc.code); got != tc.want {
+				t.Fatalf("ParseNetwork() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

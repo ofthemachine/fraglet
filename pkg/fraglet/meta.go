@@ -188,6 +188,32 @@ func ParseTags(code string) []string {
 	return tags
 }
 
+// ParseNetwork extracts the network declaration from a code string's header
+// (e.g. "#: network=none" or "#: network=required").
+// Returns the declared network mode (e.g. "none", "required") or "" if not declared.
+// When multiple declarations appear, the last non-empty one wins.
+func ParseNetwork(code string) string {
+	header, _ := SplitHeader(code)
+	var net string
+
+	for _, line := range strings.Split(header, "\n") {
+		rest, ok := directiveLine(line)
+		if !ok {
+			continue
+		}
+		for _, tok := range strings.Fields(rest) {
+			if strings.HasPrefix(tok, "network=") {
+				v := strings.ToLower(strings.TrimSpace(tok[len("network="):]))
+				if v != "" {
+					net = v
+				}
+			}
+		}
+	}
+
+	return net
+}
+
 // ParseMetaDescription returns human-oriented text from header lines that are
 // only description=... or the short form d=... (one line per block; multiple
 // lines are joined with a blank line). Use a dedicated meta line per

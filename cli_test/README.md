@@ -21,6 +21,7 @@ These tests verify:
 - `param=<alias>:required` is enforced host-side before any container starts: a missing required param prints the same listing `--fraglet-help` shows and exits 2, rather than silently expanding to `""` wherever the fraglet body references it and letting the wrapped tool's own (often confusing) error surface instead. `default=` on the same decl exempts it — a default already satisfies "the caller must supply this" (`fraglet.MissingRequired`, shared with operon's own `internal/runparams`, so the exemption rule can't drift between the two). `required` is checked only against `-p`/`--param` values; a value supplied via raw `-e` env-forwarding is invisible to it by design (`-e` and `param=` are deliberately separate mechanisms).
 - `default=` itself is declarative only in this CLI — it widens `--fraglet-help`'s listing and exempts `required`, but fragletc never injects the default value into the container's env. Every fraglet in this repo that declares one already implements its own fallback in the body (e.g. `${ENGINE:-pdflatex}`); a consumer that needs the default value actually materialized and captured (operon's memoization key) folds it itself on top of the same `fraglet.ParamDecl.Default()` primitive.
 - Relative output paths (`--output-dir=.` baked into a shebang, `--output=<dest>`) resolve against the caller's cwd at invocation, never the directory the script itself lives in — a self-exec script at `skills/fun/meme.sh` behaves like a locally installed tool, not like its output depends on where it's checked into the repo
+- Container network isolation: `--network none` and `#: network=none` launch Docker with `--network none` (no `eth0`); `#: network=required` and an explicit `--network` flag override that default. Docker's default bridge is used when neither the flag nor the header asks for isolation.
 
 ## Structure
 
@@ -38,6 +39,7 @@ cli_test/
   output_relative_to_caller/ - relative --output-dir/--output resolve against the caller's cwd, not the script's own directory
   param_file/       - param=<alias>:file (host file mounted read-only at /input/<alias>)
   required_params/  - param=<alias>:required enforced before any container starts
+  network/          - container network isolation (--network, #: network=none/required)
   cli_test.go       - Test harness using clitest
 ```
 

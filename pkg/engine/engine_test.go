@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ofthemachine/fraglet/internal/testutil"
 	"github.com/ofthemachine/fraglet/pkg/runner"
 )
 
@@ -153,6 +154,88 @@ func TestRedactEnv(t *testing.T) {
 		if got[i] != env[i] {
 			t.Fatalf("redactEnv with no secrets = %v, want unchanged %v", got, env)
 		}
+	}
+}
+
+func TestResolveNetworkMode(t *testing.T) {
+	tests := []struct {
+		name         string
+		explicitMode string
+		code         string
+		want         string
+	}{
+		{
+			name:         "empty defaults to bridge",
+			explicitMode: "",
+			code: testutil.Unindent(`
+				#!/usr/bin/env -S fragletc --image alpine:latest
+
+				print(1)
+			`),
+			want: "",
+		},
+		{
+			name:         "header network none defaults to none",
+			explicitMode: "",
+			code: testutil.Unindent(`
+				#!/usr/bin/env -S fragletc --image alpine:latest
+				#: network=none
+
+				echo "pure computation"
+			`),
+			want: "none",
+		},
+		{
+			name:         "header network required defaults to bridge",
+			explicitMode: "",
+			code: testutil.Unindent(`
+				#!/usr/bin/env -S fragletc --image alpine:latest
+				#: network=required
+
+				curl http://example.com
+			`),
+			want: "",
+		},
+		{
+			name:         "explicit mode overrides header",
+			explicitMode: "bridge",
+			code: testutil.Unindent(`
+				#!/usr/bin/env -S fragletc --image alpine:latest
+				#: network=none
+
+				echo "overridden"
+			`),
+			want: "bridge",
+		},
+		{
+			name:         "explicit none without header",
+			explicitMode: "none",
+			code: testutil.Unindent(`
+				#!/usr/bin/env -S fragletc --image alpine:latest
+
+				echo "no header"
+			`),
+			want: "none",
+		},
+		{
+			name:         "explicit host overrides network none",
+			explicitMode: "host",
+			code: testutil.Unindent(`
+				#!/usr/bin/env -S fragletc --image alpine:latest
+				#: network=none
+
+				echo "host network"
+			`),
+			want: "host",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := resolveNetworkMode(tc.explicitMode, tc.code); got != tc.want {
+				t.Fatalf("resolveNetworkMode(%q, code) = %q, want %q", tc.explicitMode, got, tc.want)
+			}
+		})
 	}
 }
 

@@ -1,0 +1,14 @@
+=== Test 1: default execution has eth0 ===
+eth0: True
+
+=== Test 2: explicit --network none severs eth0 ===
+eth0: False
+
+=== Test 3: #: network=none header automatically severs eth0 ===
+eth0: False
+
+=== Test 4: explicit --network bridge overrides #: network=none ===
+eth0: True
+
+=== Test 5: #: network=required keeps eth0 ===
+eth0: True
