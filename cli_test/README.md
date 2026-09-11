@@ -21,6 +21,7 @@ These tests verify:
 - `param=<alias>:required` is enforced host-side before any container starts: a missing required param prints the same listing `--fraglet-help` shows and exits 2, rather than silently expanding to `""` wherever the fraglet body references it and letting the wrapped tool's own (often confusing) error surface instead. `default=` on the same decl exempts it — a default already satisfies "the caller must supply this" (`fraglet.MissingRequired`, shared with operon's own `internal/runparams`, so the exemption rule can't drift between the two). `required` is checked only against `-p`/`--param` values; a value supplied via raw `-e` env-forwarding is invisible to it by design (`-e` and `param=` are deliberately separate mechanisms).
 - `default=` is injected into the container env when the caller omits `-p` for that alias (`fraglet.ApplyDefaults`). Explicit `-p alias=` (including empty) always wins and is never overwritten. `description=` / short `d=` on a param token (must be last) surfaces in `--fraglet-help` and the missing-required listing; values may contain spaces. See `cli_test/param_defaults/`.
 - Relative output paths (`--output-dir=.` baked into a shebang, `--output=<dest>`) resolve against the caller's cwd at invocation, never the directory the script itself lives in — a self-exec script at `skills/fun/meme.sh` behaves like a locally installed tool, not like its output depends on where it's checked into the repo
+- `fragletc lint [--strict] <path>...` checks headers with the same parser that runs them (`fraglet.Lint`): grammar mistakes fragletc would misread (description not last, unknown modifier, required+default, bad alias, duplicate alias, bad network= value, bad output= path) are errors; conventions (missing description, redundant `optional`, param never read in the body, missing network=, missing d=) are warnings, promoted to errors by `--strict`. Directories are walked for fragletc-shebang files only. See `cli_test/lint/`.
 - Container network isolation: `--network none` and `#: network=none` launch Docker with `--network none` (no `eth0`); `#: network=required` and an explicit `--network` flag override that default. Docker's default bridge is used when neither the flag nor the header asks for isolation.
 
 ## Structure
@@ -41,6 +42,7 @@ cli_test/
   required_params/  - param=<alias>:required enforced before any container starts
   param_defaults/   - default= injection + param description= in --fraglet-help
   network/          - container network isolation (--network, #: network=none/required)
+  lint/             - fragletc lint: grammar errors, convention warnings, --strict, directory walk
   cli_test.go       - Test harness using clitest
 ```
 

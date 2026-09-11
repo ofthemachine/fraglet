@@ -95,9 +95,12 @@ fragletc --output-dir=./out wrap_a_real_cli.py
 # What a language's fraglets need to know, shortest form first
 fragletc essence python
 fragletc guide python
+
+# Check a header (or a whole tools tree) against fragletc's own grammar; --strict for CI
+fragletc lint --strict tools/
 ```
 
-`fragletc --help` documents every flag; `fragletc <subcommand> --help` (`refresh`, `guide`, `essence`) documents each subcommand.
+`fragletc --help` documents every flag; `fragletc <subcommand> --help` (`refresh`, `guide`, `essence`, `lint`) documents each subcommand.
 
 ## In the ecosystem
 

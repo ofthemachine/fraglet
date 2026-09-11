@@ -1,0 +1,51 @@
+=== Test 1: clean file exits 0 ===
+1 file linted, clean
+exit=0
+
+=== Test 2: offenders report every rule, exit 1 ===
+offenders.py:3: error: network-value: network="bridge" is not a declaration fragletc understands; use network=none or network=required
+offenders.py:4: error: param-desc-not-last: param=engine: description must be the last modifier; "default=" was swallowed into the prose
+offenders.py:5: error: param-required-with-default: param=n: default= silently exempts required; declare one or the other
+offenders.py:6: warning: param-optional-redundant: param=count: optional is the default and does nothing; omit it
+offenders.py:7: error: param-alias: param=Input-File: alias must match ^[a-z][a-z0-9_]*(\.[a-z0-9]+)?$ (it becomes the env var INPUT-FILE)
+offenders.py:8: error: param-unknown-modifier: param=url: modifier "requried" is not one fragletc understands (required, optional, file, default=, envvar=, description=/d=)
+offenders.py:9: error: param-duplicate: param=url already declared on line 8; fragletc keeps the first and drops this one
+offenders.py:10: warning: param-unused: param=ghost is declared but the body never references GHOST
+offenders.py:11: warning: param-no-description: param=bare has no description; add :d=<what the caller should pass>
+offenders.py:12: error: output-relpath: output=/abs.png must be relative to /output, not absolute
+offenders.py:14: error: output-relpath: output=a.png already declared on line 13
+1 file linted, 8 errors, 3 warnings
+exit=1
+
+=== Test 3: warnings alone exit 0 ===
+tree/warn_only.py: warning: network-missing: no #: network= line; declare network=none (enforced hermetic) or network=required
+tree/warn_only.py:3: warning: param-no-description: param=city has no description; add :d=<what the caller should pass>
+1 file linted, 0 errors, 2 warnings
+exit=0
+
+=== Test 4: --strict turns warnings into errors, exit 1 ===
+tree/warn_only.py: error: network-missing: no #: network= line; declare network=none (enforced hermetic) or network=required
+tree/warn_only.py:3: error: param-no-description: param=city has no description; add :d=<what the caller should pass>
+1 file linted, 2 errors (--strict: warnings count as errors)
+exit=1
+
+=== Test 5: directory walk lints fragletc-shebang files only ===
+tree/warn_only.py: warning: network-missing: no #: network= line; declare network=none (enforced hermetic) or network=required
+tree/warn_only.py:3: warning: param-no-description: param=city has no description; add :d=<what the caller should pass>
+2 files linted, 0 errors, 2 warnings
+exit=0
+
+=== Test 6: an explicitly named non-fragletc file is still linted ===
+tree/not_fragletc.sh: warning: desc-missing: no tool-level #: d= (or description=) line
+tree/not_fragletc.sh: warning: network-missing: no #: network= line; declare network=none (enforced hermetic) or network=required
+tree/not_fragletc.sh:2: warning: param-no-description: param=this_is_not_a_fraglet has no description; add :d=<what the caller should pass>
+tree/not_fragletc.sh:2: warning: param-unused: param=this_is_not_a_fraglet is declared but the body never references THIS_IS_NOT_A_FRAGLET
+1 file linted, 0 errors, 4 warnings
+exit=0
+
+=== Test 7: no paths is a usage error, exit 2 ===
+exit=2
+
+=== Test 8: missing path, exit 2 ===
+stat does-not-exist.py: no such file or directory
+exit=2

@@ -128,6 +128,9 @@ func main() {
 		case "version":
 			handleVersion()
 			return
+		case "lint":
+			handleLint()
+			return
 		}
 	}
 
@@ -1041,6 +1044,7 @@ func handleEssence() {
 func usage() {
 	fmt.Fprintf(os.Stderr, `Usage: fragletc [flags] [script-file] [script-args...]
        fragletc refresh [options] [vein-name]
+       fragletc lint [--strict] <script-or-dir>...
 
 Execute fraglet code in a container using either --vein or --image.
 
@@ -1105,5 +1109,7 @@ Subcommands:
   essence       Show fraglet essence (vein registry or --image; flags and vein in any order)
                 Use "fragletc essence --help" for details
   version       Show build version, commit, and lineage info
+  lint          Check fraglet headers against fragletc's grammar and conventions
+                Use "fragletc lint --help" for the rule list
 `)
 }
