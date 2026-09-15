@@ -27,7 +27,7 @@ Pass: ./multiline_meta.py -p name=value ...  (repeat -p per parameter; see fragl
 === Test: shebang fraglet ./bare.py --fraglet-help ===
 No parameters declared in bare.py.
 
-Add param= under fraglet-meta to list names here; optional description= or d= on its own fraglet-meta line.
+Add param= under fraglet-meta to list names here; optional description= (or d=) and when= on their own fraglet-meta lines.
 
 === Test: fragletc --fraglet-help -c with fraglet-meta ===
 Parameters for <inline>:
@@ -38,7 +38,7 @@ Pass: fragletc --vein=<vein> -p name=value ... -c '<code>'
 === Test: fragletc --fraglet-help -c without meta ===
 No parameters declared in <inline>.
 
-Add param= under fraglet-meta to list names here; optional description= or d= on its own fraglet-meta line.
+Add param= under fraglet-meta to list names here; optional description= (or d=) and when= on their own fraglet-meta lines.
 
 === Test: fragletc --fraglet-help with no script or -c ===
 Error: --fraglet-help requires a script file or -c code

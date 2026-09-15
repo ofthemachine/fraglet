@@ -260,26 +260,27 @@ func ParseTags(code string) []string {
 // (e.g. "#: network=none" or "#: network=required").
 // Returns the declared network mode (e.g. "none", "required") or "" if not declared.
 // When multiple declarations appear, the last non-empty one wins.
-func ParseNetwork(code string) string {
-	header, _ := SplitHeader(code)
-	var net string
+func ParseNetwork(code string) string { return lastDirectiveValue(code, "network=") }
 
+// lastDirectiveValue returns the lowercased value of the last "key=value"
+// token on any fraglet-meta line, or "" when no line carries the key.
+func lastDirectiveValue(code, key string) string {
+	header, _ := SplitHeader(code)
+	var value string
 	for _, line := range strings.Split(header, "\n") {
 		rest, ok := directiveLine(line)
 		if !ok {
 			continue
 		}
 		for _, tok := range strings.Fields(rest) {
-			if strings.HasPrefix(tok, "network=") {
-				v := strings.ToLower(strings.TrimSpace(tok[len("network="):]))
-				if v != "" {
-					net = v
+			if strings.HasPrefix(tok, key) {
+				if v := strings.ToLower(strings.TrimSpace(tok[len(key):])); v != "" {
+					value = v
 				}
 			}
 		}
 	}
-
-	return net
+	return value
 }
 
 // ParseMetaDescription returns human-oriented text from header lines that are
@@ -310,6 +311,48 @@ func ParseMetaDescription(code string) string {
 		}
 	}
 	return strings.Join(parts, "\n\n")
+}
+
+// Stdin modes a header may declare with "#: stdin=". Stdin is an input like
+// any other: StdinBuffer (the default when undeclared) reads a non-terminal
+// stdin to EOF, hashes it into the receipt, and forwards it; StdinStream
+// passes it through live for interactive programs, which leaves nothing to
+// hash, so such a run has no memo key; StdinNone asserts the program does
+// not read stdin, so nothing is attached.
+const (
+	StdinNone   = "none"
+	StdinBuffer = "buffer"
+	StdinStream = "stream"
+)
+
+// ParseStdin returns the declared stdin mode, or "" when the header has no
+// stdin= line (callers treat that as StdinBuffer). The last non-empty
+// declaration wins, like ParseNetwork.
+func ParseStdin(code string) string { return lastDirectiveValue(code, "stdin=") }
+
+// ParseMetaWhen returns the tool-level trigger clause: the situations in which
+// an agent should reach for this tool, from "#: when=" lines. d= says what the
+// tool does; when= says when to use it. Catalogs that publish a tool as an
+// agent skill append this to the skill description verbatim, so it should be
+// written as a sentence an agent can match a request against ("Use when the
+// user wants ..."). Multiple lines join with a space.
+func ParseMetaWhen(code string) string {
+	header, _ := SplitHeader(code)
+	var parts []string
+	for _, line := range strings.Split(header, "\n") {
+		rest, ok := directiveLine(line)
+		if !ok {
+			continue
+		}
+		rest = strings.TrimSpace(rest)
+		if !strings.HasPrefix(rest, "when=") {
+			continue
+		}
+		if v := strings.TrimSpace(rest[len("when="):]); v != "" {
+			parts = append(parts, v)
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 // parseParamToken parses "alias[:modifier[:modifier...]]" into a ParamDecl.

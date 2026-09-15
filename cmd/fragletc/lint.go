@@ -37,6 +37,7 @@ Errors are declarations fragletc misreads or silently drops:
   param-alias                  alias must be [a-z][a-z0-9_]* (dotted suffix only with :file)
   param-duplicate              same alias declared twice
   network-value                network= must be none or required
+  stdin-value                  stdin= must be none, buffer, or stream
   output-relpath               output= relative to /output, no .., no duplicates
 
 Warnings are conventions (errors under --strict):
@@ -45,6 +46,7 @@ Warnings are conventions (errors under --strict):
   param-unused                 the body never references the param's env var
   network-missing              declare network=none or network=required
   desc-missing                 no tool-level d= line
+  when-missing                 no tool-level when= line (when should an agent use this?)
 
 Options:
   --strict    Exit 1 on warnings too
@@ -149,8 +151,8 @@ func collectLintFiles(paths []string) ([]string, error) {
 }
 
 // hasFragletcShebang reports whether the file's first line is a shebang that
-// invokes fragletc — the same test the skills catalog uses to decide which
-// files under tools/ are fraglets.
+// invokes fragletc: the one thing that makes a file a fraglet when walking a
+// directory.
 func hasFragletcShebang(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {

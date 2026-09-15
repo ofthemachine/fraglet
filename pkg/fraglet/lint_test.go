@@ -5,10 +5,11 @@ import (
 	"testing"
 )
 
-// cleanScript is skills/tools/web/screenshot.py as of fragletc v0.12.0 — the
-// reference shape every rule below is a deviation from.
+// cleanScript is a real tool header in full — the reference shape every
+// rule below is a deviation from.
 const cleanScript = `#!/usr/bin/env -S fragletc --image ofthemachine/headless-browser@sha256:f79c496c6737113c0f6e2d648474a67fb1a416fa34c22220d5714d0b7c6a6036
 #: d=Capture a full-page PNG screenshot of a webpage (headless Chromium via Playwright). settle_ms (default 2000) is an extra wait after page load.
+#: when=Use when the user wants a picture of a rendered page, or a visual check of a URL, rather than its text.
 #: network=required
 #: param=url:required:d=Page URL to capture
 #: param=headers:d=JSON object of extra HTTP headers (e.g. Authorization)
@@ -58,20 +59,21 @@ func TestLint_CleanScriptHasNoFindings(t *testing.T) {
 	}
 }
 
-// withHeader swaps the param/output/network lines of cleanScript for the
-// given header lines, keeping shebang, d=, and body.
+// withHeader builds a script from a three-line prelude (shebang, d=, when=
+// on lines 1-3) followed by the given header lines, so a caller's first
+// header line is line 4, and then the body.
 func withHeader(headerLines string, body string) string {
-	shebang := "#!/usr/bin/env -S fragletc --image x\n#: d=Test tool.\n"
+	prelude := "#!/usr/bin/env -S fragletc --image x\n#: d=Test tool.\n#: when=Use when testing.\n"
 	if body == "" {
 		body = "import os\nprint(os.environ.get('X', ''))\n"
 	}
-	return shebang + headerLines + body
+	return prelude + headerLines + body
 }
 
 func TestLint_DescriptionNotLast(t *testing.T) {
 	fs := Lint(withHeader("#: network=none\n#: param=engine:d=TeX engine:default=pdflatex\n", "print(ENGINE)\n"))
 	f := findRule(t, fs, "param-desc-not-last")
-	if f.Severity != Error || f.Line != 4 || !strings.Contains(f.Message, "default=") {
+	if f.Severity != Error || f.Line != 5 || !strings.Contains(f.Message, "default=") {
 		t.Fatalf("finding = %+v", f)
 	}
 }
@@ -142,7 +144,7 @@ func TestLint_AliasShape(t *testing.T) {
 func TestLint_DuplicateAlias(t *testing.T) {
 	fs := Lint(withHeader("#: network=none\n#: param=x:d=first\n#: param=x:d=second\n", "print(X)\n"))
 	f := findRule(t, fs, "param-duplicate")
-	if f.Line != 5 || !strings.Contains(f.Message, "line 4") {
+	if f.Line != 6 || !strings.Contains(f.Message, "line 5") {
 		t.Fatalf("finding = %+v", f)
 	}
 }
@@ -187,7 +189,7 @@ func TestLint_NetworkRules(t *testing.T) {
 
 	fs = Lint(withHeader("#: network=bridge\n#: param=x:d=X\n", "print(X)\n"))
 	f = findRule(t, fs, "network-value")
-	if f.Severity != Error || f.Line != 3 {
+	if f.Severity != Error || f.Line != 4 {
 		t.Fatalf("finding = %+v", f)
 	}
 	assertNoRule(t, fs, "network-missing")
@@ -228,4 +230,23 @@ func TestLint_FindingsSortedByLine(t *testing.T) {
 			t.Fatalf("findings not sorted by line: %v", lines)
 		}
 	}
+}
+
+func TestLint_WhenMissing(t *testing.T) {
+	header := "#!/usr/bin/env -S fragletc --image x\n#: d=Test tool.\n#: network=none\n"
+	f := findRule(t, Lint(header+"print(1)\n"), "when-missing")
+	if f.Severity != Warning || f.Line != 0 {
+		t.Fatalf("finding = %+v", f)
+	}
+	assertNoRule(t, Lint(header+"#: when=Use when testing.\nprint(1)\n"), "when-missing")
+}
+
+func TestLint_StdinValue(t *testing.T) {
+	fs := Lint(withHeader("#: network=none\n#: stdin=pipe\n", "print(1)\n"))
+	if f := findRule(t, fs, "stdin-value"); f.Severity != Error || f.Line != 5 {
+		t.Fatalf("finding = %+v", f)
+	}
+	assertNoRule(t, Lint(withHeader("#: network=none\n#: stdin=buffer\n", "print(1)\n")), "stdin-value")
+	// Reading stdin without declaring it is fine: undeclared means buffer.
+	assertNoRule(t, Lint(withHeader("#: network=none\n", "import sys\nprint(sys.stdin.read())\n")), "stdin-undeclared")
 }

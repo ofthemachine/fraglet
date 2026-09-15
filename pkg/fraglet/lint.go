@@ -81,6 +81,12 @@ func Lint(code string) []Finding {
 			switch {
 			case strings.HasPrefix(field, "output="):
 				out = append(out, lintOutputToken(field[len("output="):], lineNo, seenOutputs)...)
+			case strings.HasPrefix(field, "stdin="):
+				v := strings.ToLower(strings.TrimSpace(field[len("stdin="):]))
+				if v != StdinNone && v != StdinBuffer && v != StdinStream {
+					out = append(out, Finding{lineNo, "stdin-value", Error,
+						fmt.Sprintf("stdin=%q is not a mode fragletc understands; use stdin=none, stdin=buffer, or stdin=stream", v)})
+				}
 			case strings.HasPrefix(field, "network="):
 				sawNetwork = true
 				v := strings.ToLower(strings.TrimSpace(field[len("network="):]))
@@ -99,6 +105,10 @@ func Lint(code string) []Finding {
 	if ParseMetaDescription(code) == "" {
 		out = append(out, Finding{0, "desc-missing", Warning,
 			"no tool-level #: d= (or description=) line"})
+	}
+	if ParseMetaWhen(code) == "" {
+		out = append(out, Finding{0, "when-missing", Warning,
+			"no tool-level #: when= line; say when an agent should reach for this tool (\"Use when ...\")"})
 	}
 
 	sort.SliceStable(out, func(i, j int) bool {

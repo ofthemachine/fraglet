@@ -1,0 +1,23 @@
+=== Test 1: undeclared stdin is buffered and forwarded ===
+HELLO
+
+=== Test 2: --stdin=none attaches nothing even when piped ===
+(end)
+
+=== Test 3: a buffered run's receipt records the stdin hash and has a memo key ===
+1
+"stdin_mode": "buffer"
+"": "sha256:5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"
+
+=== Test 4: a stream run is receipted honestly: no stdin hash, no memo key ===
+0
+"stdin_mode": "stream"
+"inputs": {}
+
+=== Test 5: positional args are recorded and cost the run its memo key ===
+['foo']
+0
+"argv":["foo"],
+
+=== Test 6: --stdin rejects anything but none, buffer, stream ===
+--stdin="pipe" is not none, buffer, or stream

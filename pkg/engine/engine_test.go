@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/ofthemachine/fraglet/internal/testutil"
+	"github.com/ofthemachine/fraglet/pkg/receipt"
 	"github.com/ofthemachine/fraglet/pkg/runner"
 )
 
@@ -33,7 +36,7 @@ func TestExecute_StripsHeaderBeforeMount(t *testing.T) {
 	code := "#!/usr/bin/env -S fragletc --image alpine:latest\n" +
 		"#: d=HEADER_MARKER_SHOULD_NOT_APPEAR\n" +
 		"#: param=unused\n" +
-		"# x-operon: ref=test/marker\n" +
+		"# plain-comment: ref=test/marker\n" +
 		"BODY_MARKER_SHOULD_APPEAR"
 
 	result, err := Execute(context.Background(), ExecuteSpec{
@@ -50,8 +53,8 @@ func TestExecute_StripsHeaderBeforeMount(t *testing.T) {
 	if !strings.Contains(result.Stdout, "BODY_MARKER_SHOULD_APPEAR") {
 		t.Fatalf("body missing from mounted script: %q", result.Stdout)
 	}
-	// "#:" and "x-operon:" directive lines themselves must never reach the container.
-	if strings.Contains(result.Stdout, "x-operon") || strings.Contains(result.Stdout, "#:") {
+	// "#:" directive lines and plain "#" header comments must never reach the container.
+	if strings.Contains(result.Stdout, "plain-comment") || strings.Contains(result.Stdout, "#:") {
 		t.Fatalf("directive lines leaked into mounted body: %q", result.Stdout)
 	}
 }
@@ -268,5 +271,157 @@ func TestNewOutputSink_NoCaptureStreamsWithoutBuffer(t *testing.T) {
 	}
 	if got := stdout.String(); got != payload {
 		t.Fatalf("forwarded stdout len = %d, want %d", len(got), len(payload))
+	}
+}
+
+// pythonImage is the image the RunWithReport tests run scripts in. They
+// skip unless it is already local: these are unit tests, not pulls.
+const pythonImage = "ofthemachine/python3:latest"
+
+func requireLocalImage(t *testing.T, image string) {
+	t.Helper()
+	requireDocker(t)
+	if exec.Command("docker", "image", "inspect", image).Run() != nil {
+		t.Skipf("image %s not present locally, skipping", image)
+	}
+}
+
+func writeScript(t *testing.T, name, code string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(p, []byte(code), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func runReport(t *testing.T, opts RunOptions) (RunReport, string) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	opts.Image, opts.Stdout, opts.Stderr = pythonImage, &stdout, &stderr
+	report, err := RunWithReport(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("RunWithReport: %v\nstderr: %s", err, stderr.String())
+	}
+	if report.ExitCode != 0 {
+		t.Fatalf("exit %d\nstderr: %s", report.ExitCode, stderr.String())
+	}
+	return report, stdout.String()
+}
+
+const upperScript = "#!/usr/bin/env -S fragletc --image ofthemachine/python3\n#: d=upper\nimport sys\nprint(sys.stdin.read().upper(), end='')\n"
+
+// Undeclared stdin is buffered: forwarded to the program and hashed into
+// the invocation, so the run has a memo key.
+func TestRunWithReport_UndeclaredStdinIsBuffered(t *testing.T) {
+	requireLocalImage(t, pythonImage)
+	script := writeScript(t, "upper.py", upperScript)
+
+	report, out := runReport(t, RunOptions{ScriptFile: script, Stdin: strings.NewReader("hello\n")})
+	if out != "HELLO\n" {
+		t.Fatalf("stdout = %q", out)
+	}
+	if report.StdinMode != "buffer" || report.Inputs[receipt.AnonKey] != receipt.SumBytes([]byte("hello\n")).Hash {
+		t.Fatalf("invocation = %+v", report.Invocation)
+	}
+	if _, ok := report.MemoKey(); !ok {
+		t.Fatalf("expected a memo key: unbound = %v", report.Unbound())
+	}
+	if report.Outputs[receipt.AnonKey] != report.Stdout.Hash || report.Stdout.Bytes != 6 {
+		t.Fatalf("outcome = %+v", report.Outcome)
+	}
+}
+
+// A nil Stdin under buffer is not attached: the program sees EOF and the
+// input hash is the empty one, so the key is the same as for no stdin.
+func TestRunWithReport_NilStdinNotAttached(t *testing.T) {
+	requireLocalImage(t, pythonImage)
+	script := writeScript(t, "upper.py", upperScript)
+
+	report, out := runReport(t, RunOptions{ScriptFile: script})
+	if out != "" {
+		t.Fatalf("stdout = %q", out)
+	}
+	if report.Inputs[receipt.AnonKey] != receipt.SumBytes(nil).Hash {
+		t.Fatalf("inputs = %v", report.Inputs)
+	}
+}
+
+// Stream and none are explicit: stream forwards live and drops the key;
+// none attaches nothing even when a Stdin is offered.
+func TestRunWithReport_StreamAndNone(t *testing.T) {
+	requireLocalImage(t, pythonImage)
+	script := writeScript(t, "upper.py", upperScript)
+
+	report, out := runReport(t, RunOptions{ScriptFile: script, Stdin: strings.NewReader("hi\n"), StdinMode: "stream"})
+	if out != "HI\n" || report.StdinMode != "stream" {
+		t.Fatalf("stream: stdout = %q, mode = %s", out, report.StdinMode)
+	}
+	if _, ok := report.Inputs[receipt.AnonKey]; ok {
+		t.Fatal("stream must not record a stdin hash")
+	}
+	if _, ok := report.MemoKey(); ok {
+		t.Fatal("stream must not have a memo key")
+	}
+
+	report, out = runReport(t, RunOptions{ScriptFile: script, Stdin: strings.NewReader("hi\n"), StdinMode: "none"})
+	if out != "" || report.StdinMode != "none" || report.Inputs[receipt.AnonKey] != receipt.SumBytes(nil).Hash {
+		t.Fatalf("none: stdout = %q, invocation = %+v", out, report.Invocation)
+	}
+}
+
+// Anything bound outside the declared parameters is recorded on the
+// invocation and costs it its memo key; -e is recorded by name only.
+func TestRunWithReport_ArgvAndEnvAreUnbound(t *testing.T) {
+	requireLocalImage(t, pythonImage)
+	script := writeScript(t, "args.py", "import os, sys\nprint(sys.argv[1:], os.environ.get('SECRET_TOKEN'))\n")
+
+	report, out := runReport(t, RunOptions{ScriptFile: script, ScriptArgs: []string{"foo"}, EnvFlags: []string{"SECRET_TOKEN=hunter2"}})
+	if !strings.Contains(out, "['foo'] hunter2") {
+		t.Fatalf("stdout = %q", out)
+	}
+	if len(report.Argv) != 1 || report.Argv[0] != "foo" || len(report.Env) != 1 || report.Env[0] != "SECRET_TOKEN" {
+		t.Fatalf("invocation = %+v", report.Invocation)
+	}
+	if _, ok := report.MemoKey(); ok {
+		t.Fatal("argv/env runs must not have a memo key")
+	}
+	if len(report.Unbound()) != 2 {
+		t.Fatalf("Unbound = %v", report.Unbound())
+	}
+	data, _ := json.Marshal(receipt.Build(report.Invocation, report.Outcome, "test", script))
+	if bytes.Contains(data, []byte("hunter2")) {
+		t.Fatalf("secret value leaked into receipt: %s", data)
+	}
+}
+
+// Declared params and :file inputs are the key's whole input space, and a
+// conformant run's key is the documented formula over them.
+func TestRunWithReport_DeclaredParamsKeyTheRun(t *testing.T) {
+	requireLocalImage(t, pythonImage)
+	doc := filepath.Join(t.TempDir(), "doc.txt")
+	if err := os.WriteFile(doc, []byte("mounted"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code := "#!/usr/bin/env -S fragletc --image ofthemachine/python3\n#: param=n:d=count\n#: param=doc:file\n#: output=out.txt\nimport os\nopen('/output/out.txt','w').write(os.environ['N'] + open('/input/doc').read())\n"
+	script := writeScript(t, "tool.py", code)
+	outDir := t.TempDir()
+	if err := os.Chmod(outDir, 0o777); err != nil {
+		t.Fatal(err)
+	}
+
+	report, _ := runReport(t, RunOptions{ScriptFile: script, ParamStrs: []string{"n=7", "doc=" + doc}, OutputHostDir: outDir})
+	if report.Params["n"] != "7" || report.Inputs["doc"] != receipt.SumBytes([]byte("mounted")).Hash {
+		t.Fatalf("invocation = %+v", report.Invocation)
+	}
+	want, _ := receipt.Invocation{ProcedureHash: receipt.ProcedureHash([]byte(code)), Params: map[string]string{"n": "7"}, Inputs: map[string]string{"": receipt.SumBytes(nil).Hash, "doc": receipt.SumBytes([]byte("mounted")).Hash}}.MemoKey()
+	if key, ok := report.MemoKey(); !ok || key != want {
+		t.Fatalf("memo key = %s (%v), want %s", key, ok, want)
+	}
+	if report.Outputs["out.txt"] != receipt.SumBytes([]byte("7mounted")).Hash {
+		t.Fatalf("outputs = %v", report.Outputs)
+	}
+	if _, ok := report.Outputs[receipt.AnonKey]; ok {
+		t.Fatal("a script with declared outputs has no anonymous stdout result")
 	}
 }

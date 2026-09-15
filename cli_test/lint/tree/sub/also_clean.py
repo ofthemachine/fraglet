@@ -1,5 +1,6 @@
 #!/usr/bin/env -S fragletc --vein=python
 #: d=Reference conformant header: every param described, default= read straight from the env.
+#: when=Use when testing the directory walk.
 #: network=none
 #: param=url:required:d=Page URL to capture
 #: param=headers:d=JSON object of extra HTTP headers

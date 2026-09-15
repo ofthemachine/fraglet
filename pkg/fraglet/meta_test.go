@@ -372,3 +372,25 @@ func TestParseNetwork(t *testing.T) {
 		})
 	}
 }
+
+func TestParseMetaWhen(t *testing.T) {
+	code := "#!/usr/bin/env -S fragletc --image x\n#: d=Does a thing.\n#: when=Use when the user asks for a thing,\n#: when=or mentions things.\n#: network=none\n"
+	if got := ParseMetaWhen(code); got != "Use when the user asks for a thing, or mentions things." {
+		t.Fatalf("ParseMetaWhen = %q", got)
+	}
+	if ParseMetaWhen("#: d=Only a description.") != "" {
+		t.Fatal("expected empty when clause")
+	}
+}
+
+func TestParseStdin(t *testing.T) {
+	if got := ParseStdin("#: d=T\n#: stdin=buffer\n"); got != StdinBuffer {
+		t.Fatalf("ParseStdin = %q", got)
+	}
+	if got := ParseStdin("#: d=T\n#: stdin=Stream\n"); got != StdinStream {
+		t.Fatalf("ParseStdin (case) = %q", got)
+	}
+	if ParseStdin("#: d=T\n") != "" {
+		t.Fatal("expected empty mode when undeclared")
+	}
+}

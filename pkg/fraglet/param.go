@@ -104,7 +104,7 @@ func (p Param) TransportEnvValue() string {
 	return enc + ":" + p.Value
 }
 
-// Canonical returns the deterministic form for hashing/ledger: "CITY=raw:london".
+// Canonical returns the deterministic form for hashing: "CITY=raw:london".
 func (p Param) Canonical() string {
 	return p.EnvVar + "=" + p.TransportEnvValue()
 }
@@ -132,7 +132,7 @@ func (ps Params) ToTransportEnv() ([]string, error) {
 	return out, nil
 }
 
-// ToCanonical returns sorted "key=type:value" pairs for hashing/ledger.
+// ToCanonical returns sorted "key=type:value" pairs for hashing.
 func (ps Params) ToCanonical() []string {
 	if len(ps) == 0 {
 		return nil
@@ -249,7 +249,7 @@ func (ps Params) ResolveAliases(decls []ParamDecl) (Params, error) {
 // contract, not about "is this env var set by any means."
 //
 // This is the one place "required, unless defaulted" gets decided — every
-// caller (fragletc's CLI, operon's own invoke/solve paths) should call this
+// caller (fragletc's CLI, any library consumer) should call this
 // rather than re-deriving the same exemption rule by hand; a second,
 // independent copy of "unless it has a default" is exactly the kind of
 // special case that quietly drifts out of sync with this one.

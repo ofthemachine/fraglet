@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/ofthemachine/fraglet/pkg/embed"
 	"github.com/ofthemachine/fraglet/pkg/fraglet"
+	"github.com/ofthemachine/fraglet/pkg/receipt"
 	"github.com/ofthemachine/fraglet/pkg/runner"
 	"github.com/ofthemachine/fraglet/pkg/vein"
 )
@@ -69,11 +71,11 @@ type ExecuteResult struct {
 }
 
 // Execute mounts the body of spec.Code (spec.Code's header — shebang plus
-// fraglet-meta/x-operon/plain "#" lines — is stripped via fraglet.SplitHeader
+// "#:" directive and plain "#" lines — is stripped via fraglet.SplitHeader
 // and never reaches the container) and runs it in spec.Image. It captures
 // stdout/stderr into the returned ExecuteResult while also forwarding to
 // spec.Stdout/spec.Stderr when set, so a caller gets both a full string
-// (e.g. for ledger recording) and live streaming from the same run.
+// (e.g. to record the run) and live streaming from the same run.
 func Execute(ctx context.Context, spec ExecuteSpec) (ExecuteResult, error) {
 	networkMode := resolveNetworkMode(spec.NetworkMode, spec.Code)
 	return runContainer(ctx, containerRunSpec{
@@ -219,6 +221,12 @@ type RunOptions struct {
 	Stderr      io.Writer
 	ParamStrs   []string
 	NetworkMode string // docker --network value (e.g. "none" to disable networking); empty = default
+	// StdinMode overrides the script's #: stdin= declaration (fraglet.StdinNone,
+	// StdinBuffer, StdinStream); empty defers to the header, and an undeclared
+	// header means StdinBuffer: Stdin is read to EOF before the run, hashed
+	// into the report, and forwarded. Stream passes it through live and
+	// hashes nothing; None attaches nothing.
+	StdinMode string
 
 	// OutputHostDir, when non-empty, is mounted writable at OutputMount so
 	// the fraglet's declared output= files land there. Creating and
@@ -229,6 +237,30 @@ type RunOptions struct {
 
 // Run orchestrates the execution of a fraglet
 func Run(ctx context.Context, opts RunOptions) (int, error) {
+	report, err := RunWithReport(ctx, opts)
+	return report.ExitCode, err
+}
+
+// RunReport is everything RunWithReport learned about a run: the
+// Invocation that was bound to the container and the Outcome it produced,
+// in receipt's vocabulary. receipt.Build turns it into a receipt.
+type RunReport struct {
+	receipt.Invocation
+	receipt.Outcome
+}
+
+// RunWithReport is Run plus a RunReport. Stdout is hashed as it streams;
+// stdin is bound per the effective stdin mode (see RunOptions.StdinMode).
+// On error ExitCode is 1 unless the container itself reported otherwise.
+func RunWithReport(ctx context.Context, opts RunOptions) (RunReport, error) {
+	report, err := runWithReport(ctx, opts)
+	if err != nil && report.ExitCode == 0 {
+		report.ExitCode = 1
+	}
+	return report, err
+}
+
+func runWithReport(ctx context.Context, opts RunOptions) (RunReport, error) {
 	if opts.Stdout == nil {
 		opts.Stdout = os.Stdout
 	}
@@ -239,27 +271,61 @@ func Run(ctx context.Context, opts RunOptions) (int, error) {
 		opts.FragletPath = defaultFragletPath
 	}
 
+	spec, inv, anonStdout, err := prepare(opts)
+	if err != nil {
+		return RunReport{Invocation: inv}, err
+	}
+
+	stdoutHash := receipt.NewHasher()
+	spec.stdout = io.MultiWriter(opts.Stdout, stdoutHash)
+	spec.stderr = opts.Stderr
+
+	var out receipt.Outcome
+	out.Started = time.Now().UTC()
+	result, err := runContainer(ctx, spec)
+	out.Finished = time.Now().UTC()
+	if err != nil {
+		return RunReport{Invocation: inv, Outcome: out}, err
+	}
+	out.ExitCode = result.ExitCode
+	out.Stdout = stdoutHash.Digest()
+	if out.Outputs, err = collectOutputs(opts.OutputHostDir, anonStdout, out.Stdout); err != nil {
+		return RunReport{Invocation: inv, Outcome: out}, fmt.Errorf("outputs: %w", err)
+	}
+	// The image is local by now (the run pulled it if needed), so its
+	// registry digest is a cheap inspect away. ResolveImageDigest returns
+	// the ref unchanged when it cannot; only a real @sha256 counts.
+	if ref, _ := vein.ResolveImageDigest(ctx, spec.image); strings.Contains(ref, "@sha256:") {
+		inv.ImageDigest = ref[strings.Index(ref, "@")+1:]
+	}
+	return RunReport{Invocation: inv, Outcome: out}, nil
+}
+
+// prepare resolves everything a run needs into the container spec and, from
+// that same final state, the Invocation that identifies it. anonStdout
+// reports whether stdout is the run's anonymous result (no output= declared).
+func prepare(opts RunOptions) (spec containerRunSpec, inv receipt.Invocation, anonStdout bool, err error) {
 	// --- Resolve vein + mode ---
 	veinName, finalMode, err := resolveVeinAndMode(opts.VeinSpec, opts.Mode, opts.Image, opts.ScriptFile)
 	if err != nil {
-		return 1, fmt.Errorf("Error: %w", err)
+		return spec, inv, false, fmt.Errorf("Error: %w", err)
 	}
 
 	// Validate mutual exclusion early
 	if opts.Image != "" && veinName != "" {
-		return 1, fmt.Errorf("Error: cannot specify both --image and --vein")
+		return spec, inv, false, fmt.Errorf("Error: cannot specify both --image and --vein")
 	}
 
 	// --- Resolve code ---
 	code, err := resolveCode(opts.InlineCode, opts.ScriptFile)
 	if err != nil {
-		return 1, fmt.Errorf("Error: %w", err)
+		return spec, inv, false, fmt.Errorf("Error: %w", err)
 	}
 
 	// --- Resolve container + fraglet mount path ---
 	containerImage, fragletMountPath, err := resolveContainer(veinName, opts.Image, opts.FragletPath)
 	if err != nil {
-		return 1, fmt.Errorf("Error: %w", err)
+		return spec, inv, false, fmt.Errorf("Error: %w", err)
 	}
 
 	// --- Build env vars ---
@@ -272,54 +338,182 @@ func Run(ctx context.Context, opts RunOptions) (int, error) {
 	for _, pf := range opts.ParamStrs {
 		p, err := fraglet.ParseParam(pf)
 		if err != nil {
-			return 1, fmt.Errorf("param error: %w", err)
+			return spec, inv, false, fmt.Errorf("param error: %w", err)
 		}
 		params = append(params, p)
 	}
 	params = fraglet.ApplyDefaults(decls, params)
+	var scalars, inputs map[string]string
 	if len(params) > 0 {
 		if len(decls) > 0 {
 			params, err = params.ResolveAliases(decls)
 			if err != nil {
-				return 1, fmt.Errorf("param alias error: %w", err)
+				return spec, inv, false, fmt.Errorf("param alias error: %w", err)
 			}
 		}
+		// ResolveFileParams validates each :file host path and rewrites the
+		// value to its container path; the receipt hashes the host file, so
+		// split from the pre-rewrite params after validation has passed.
+		resolved := params
 		var fileMounts []fraglet.FileMount
 		params, fileMounts, err = fraglet.ResolveFileParams(decls, params, InputMount)
 		if err != nil {
-			return 1, fmt.Errorf("file param error: %w", err)
+			return spec, inv, false, fmt.Errorf("file param error: %w", err)
+		}
+		scalars, inputs, err = splitParams(decls, resolved)
+		if err != nil {
+			return spec, inv, false, fmt.Errorf("param error: %w", err)
 		}
 		for _, m := range fileMounts {
 			volumes = append(volumes, runner.VolumeMount{HostPath: m.HostPath, ContainerPath: m.ContainerPath})
 		}
 		transportEnv, err := params.ToTransportEnv()
 		if err != nil {
-			return 1, fmt.Errorf("param transport error: %w", err)
+			return spec, inv, false, fmt.Errorf("param transport error: %w", err)
 		}
 		envVars = append(envVars, transportEnv...)
 	}
+	if inputs == nil {
+		inputs = map[string]string{}
+	}
 
-	// --- Resolve network mode ---
-	networkMode := resolveNetworkMode(opts.NetworkMode, code)
+	// --- Bind stdin ---
+	stdinMode := opts.StdinMode
+	if stdinMode == "" {
+		stdinMode = fraglet.ParseStdin(code)
+	}
+	if stdinMode == "" {
+		stdinMode = fraglet.StdinBuffer
+	}
+	var stdin io.Reader
+	switch stdinMode {
+	case fraglet.StdinNone:
+		inputs[receipt.AnonKey] = receipt.SumBytes(nil).Hash
+	case fraglet.StdinBuffer:
+		// A nil Stdin (a terminal, or a library caller with nothing to
+		// say) is not attached at all: an empty reader would add -i and
+		// make docker wait on nothing.
+		var stdinBytes []byte
+		if opts.Stdin != nil {
+			if stdinBytes, err = io.ReadAll(opts.Stdin); err != nil {
+				return spec, inv, false, fmt.Errorf("stdin: %w", err)
+			}
+			stdin = bytes.NewReader(stdinBytes)
+		}
+		inputs[receipt.AnonKey] = receipt.SumBytes(stdinBytes).Hash
+	case fraglet.StdinStream:
+		stdin = opts.Stdin
+	default:
+		return spec, inv, false, fmt.Errorf("Error: stdin mode %q is not none, buffer, or stream", stdinMode)
+	}
 
-	result, err := runContainer(ctx, containerRunSpec{
+	spec = containerRunSpec{
 		image:         containerImage,
 		code:          code,
 		env:           envVars,
 		volumes:       volumes,
 		outputHostDir: opts.OutputHostDir,
-		networkMode:   networkMode,
+		networkMode:   resolveNetworkMode(opts.NetworkMode, code),
 		args:          opts.ScriptArgs,
-		stdin:         opts.Stdin,
-		stdout:        opts.Stdout,
-		stderr:        opts.Stderr,
+		stdin:         stdin,
 		fragletPath:   fragletMountPath,
 		capture:       false,
-	})
-	if err != nil {
-		return 1, err
 	}
-	return result.ExitCode, nil
+	inv = receipt.Invocation{
+		ProcedureHash: receipt.ProcedureHash([]byte(code)),
+		Image:         containerImage,
+		Network:       effectiveNetwork(opts.NetworkMode, code),
+		Mode:          finalMode,
+		StdinMode:     stdinMode,
+		Params:        scalars,
+		Inputs:        inputs,
+		Argv:          opts.ScriptArgs,
+		Env:           envNames(opts.EnvFlags),
+	}
+	return spec, inv, len(fraglet.ParseOutputDecls(code)) == 0, nil
+}
+
+// effectiveNetwork is the network stance the run had: a --network override
+// verbatim, else the declared #: network= value ("" when undeclared).
+func effectiveNetwork(override, code string) string {
+	if override != "" {
+		return override
+	}
+	return fraglet.ParseNetwork(code)
+}
+
+// envNames lists the variables -e forwards, by name only.
+func envNames(envFlags []string) []string {
+	var names []string
+	for _, e := range envFlags {
+		if name, _, _ := strings.Cut(e, "="); name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// collectOutputs hashes every file the run left under /output; when the
+// script declares no output=, stdout is the anonymous result instead
+// (receipt.AnonKey). Stdout is recorded on the Outcome either way.
+func collectOutputs(outputHostDir string, anonStdout bool, stdout receipt.Digest) (map[string]string, error) {
+	outputs := map[string]string{}
+	if anonStdout {
+		outputs[receipt.AnonKey] = stdout.Hash
+	}
+	if outputHostDir == "" {
+		return outputs, nil
+	}
+	err := filepath.WalkDir(outputHostDir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(outputHostDir, p)
+		if err != nil {
+			return err
+		}
+		dg, err := receipt.SumFile(p)
+		if err != nil {
+			return err
+		}
+		outputs[filepath.ToSlash(rel)] = dg.Hash
+		return nil
+	})
+	return outputs, err
+}
+
+// splitParams splits resolved params into the receipt's two maps: scalar
+// params by declared alias and decoded value, and :file params by alias to
+// the content hash of the host file they name.
+func splitParams(decls []fraglet.ParamDecl, params fraglet.Params) (map[string]string, map[string]string, error) {
+	byEnv := make(map[string]fraglet.ParamDecl, len(decls))
+	for _, d := range decls {
+		byEnv[d.EnvVar] = d
+	}
+	scalars := make(map[string]string, len(params))
+	inputs := make(map[string]string)
+	for _, p := range params {
+		value, err := p.Decode()
+		if err != nil {
+			return nil, nil, err
+		}
+		name := p.EnvVar
+		isFile := false
+		if d, ok := byEnv[p.EnvVar]; ok {
+			name = d.Alias
+			isFile = d.Shape == "file"
+		}
+		if !isFile {
+			scalars[name] = value
+			continue
+		}
+		dg, err := receipt.SumFile(value)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %w", name, err)
+		}
+		inputs[name] = dg.Hash
+	}
+	return scalars, inputs, nil
 }
 
 func resolveVeinAndMode(veinSpec, modeFlag, image, scriptFile string) (veinName, mode string, err error) {
@@ -359,8 +553,8 @@ func resolveVeinAndMode(veinSpec, modeFlag, image, scriptFile string) (veinName,
 }
 
 // resolveCode returns the full file content unmodified. Execute (via
-// fraglet.SplitHeader) strips the header — shebang plus all fraglet-meta /
-// x-operon / plain "#" lines — before the container ever sees any of it, so
+// fraglet.SplitHeader) strips the header — shebang plus all "#:" directive
+// and plain "#" lines — before the container ever sees any of it, so
 // there is nothing left for the caller to strip here.
 func resolveCode(inlineCode, scriptFile string) (string, error) {
 	if inlineCode != "" {
