@@ -64,10 +64,19 @@ func Lint(code string) []Finding {
 
 	seenParams := make(map[string]int) // alias → first line
 	seenOutputs := make(map[string]int)
+	seenSecrets := make(map[string]int)
+	paramEnv := make(map[string]string) // env var → alias
+	for _, d := range ParseParamDecls(code) {
+		paramEnv[d.EnvVar] = d.Alias
+	}
 	sawNetwork := false
 
 	for i, line := range lines {
 		lineNo := i + 1
+		if tok, ok := secretToken(line); ok {
+			out = append(out, lintSecretToken(tok, lineNo, seenSecrets, paramEnv, body)...)
+			continue
+		}
 		rest, ok := directiveLine(line)
 		if !ok {
 			continue
@@ -242,6 +251,40 @@ func lintOutputToken(tok string, lineNo int, seen map[string]int) []Finding {
 			fmt.Sprintf("output=%s already declared on line %d", rel, first)})
 	} else {
 		seen[rel] = lineNo
+	}
+	return out
+}
+
+// lintSecretToken checks one "NAME[:d=prose]" secret declaration exactly as
+// parseSecretToken will read it. There are no modifiers: the value always
+// comes from the caller's env var NAME and always arrives as a file.
+func lintSecretToken(tok string, lineNo int, seen map[string]int, paramEnv map[string]string, body string) []Finding {
+	decl := parseSecretToken(tok)
+	name := decl.Name
+	if !ValidSecretName(name) {
+		return []Finding{{lineNo, "secret-name", Error,
+			fmt.Sprintf("secret=%s: a secret is NAME or NAME:d=<description>, where NAME matches %s and does not start with FRAGLET_ (it is the caller's env var and the file %s/NAME); secrets take no other modifiers", name, secretNameRe, SecretMountDir)}}
+	}
+	if first, dup := seen[name]; dup {
+		return []Finding{{lineNo, "secret-duplicate", Error,
+			fmt.Sprintf("secret=%s already declared on line %d", name, first)}}
+	}
+	seen[name] = lineNo
+
+	var out []Finding
+	for _, env := range []string{name, decl.FileEnv()} {
+		if alias, clash := paramEnv[env]; clash {
+			out = append(out, Finding{lineNo, "secret-param-collision", Error,
+				fmt.Sprintf("secret=%s: param=%s also sets the env var %s; rename one", name, alias, env)})
+		}
+	}
+	if decl.Description == "" {
+		out = append(out, Finding{lineNo, "secret-no-description", Warning,
+			fmt.Sprintf("secret=%s has no description; add :d=<what credential the caller must provide>", name)})
+	}
+	if body != "" && !strings.Contains(body, name) {
+		out = append(out, Finding{lineNo, "secret-unused", Warning,
+			fmt.Sprintf("secret=%s is declared but the body never references %s (read the file named by $%s)", name, decl.FileEnv(), decl.FileEnv())})
 	}
 	return out
 }

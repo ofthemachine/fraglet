@@ -202,13 +202,10 @@ Secrets (credentials, API keys, passwords) are **not params**. They use a differ
 - Params use env var transport — fundamentally not secret-safe
 - Secrets need a different channel: mounted files, not env vars
 
-**Planned mechanism** (future work):
-- Runner mounts secrets as files at `/run/fraglet/secrets/<NAME>` (tmpfs, never on disk)
-- Injects `<NAME>_FILE=/run/fraglet/secrets/<NAME>` as env var (following Docker `*_FILE` convention)
-- Program reads the file content; secret never appears in env vars or process listings
-- Entrypoint manages cleanup on exit
-
-**For v1:** Document that params are not suitable for secrets. The `secret=` token format is reserved — no implementation yet, but the format doesn't conflict with `param=`.
+**Implemented (fragletc, 2026-09-24):** `#: secret=NAME:d=<description>`, one per header line.
+- The value comes from the caller's env var `NAME` (wrap with `op run`, `security find-generic-password`, etc. for vaults); a missing one exits 2 host-side.
+- Delivery follows Docker Compose's environment-sourced secrets: `docker create --rm`, then `docker cp -` of an in-memory tar putting a 0444 file at `/run/fraglet/secrets/NAME`, then `docker start -a`. `NAME_FILE` holds the path. The value is never in argv, `docker inspect`, the container env, a host file, or the receipt; SIGINT/SIGTERM force-remove the container.
+- Declarations are in the script, so `procedure_hash` covers them and the run stays conformant (memo key intact). No source or transport options: those are caller concerns, not tool contract.
 
 ---
 

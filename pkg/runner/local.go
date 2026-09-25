@@ -32,6 +32,9 @@ func (r *localRunner) Run(ctx context.Context, spec RunSpec) (RunResult, error) 
 }
 
 func (r *localRunner) RunStreaming(ctx context.Context, spec RunSpec) (*StreamingResult, error) {
+	if len(spec.Secrets) > 0 {
+		return nil, fmt.Errorf("secrets require the docker runner (docker not available)")
+	}
 	var cmd *exec.Cmd
 	var cleanup func()
 

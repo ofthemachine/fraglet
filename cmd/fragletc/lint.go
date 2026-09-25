@@ -39,6 +39,9 @@ Errors are declarations fragletc misreads or silently drops:
   network-value                network= must be none or required
   stdin-value                  stdin= must be none, buffer, or stream
   output-relpath               output= relative to /output, no .., no duplicates
+  secret-name                  secret=NAME[:d=...] on its own line; NAME is [A-Z][A-Z0-9_]*, not FRAGLET_*
+  secret-duplicate             same secret declared twice
+  secret-param-collision       a param's env var equals a secret's NAME or NAME_FILE
 
 Warnings are conventions (errors under --strict):
   param-no-description         every param should say what to pass
@@ -47,6 +50,8 @@ Warnings are conventions (errors under --strict):
   network-missing              declare network=none or network=required
   desc-missing                 no tool-level d= line
   when-missing                 no tool-level when= line (when should an agent use this?)
+  secret-no-description        every secret should say what credential to provide
+  secret-unused                the body never references the secret (read $NAME_FILE)
 
 Options:
   --strict    Exit 1 on warnings too

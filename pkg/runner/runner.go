@@ -41,6 +41,12 @@ type VolumeMount struct {
 	Writable      bool   // If true, mount is read-write; default false = read-only (secure by default)
 }
 
+// Secret is a value delivered into a container as a read-only file at Path.
+type Secret struct {
+	Path  string // absolute container path, e.g. /run/fraglet/secrets/HA_TOKEN
+	Value []byte
+}
+
 // RunSpec defines what to execute
 type RunSpec struct {
 	Command     string        // The command to execute (rendered template)
@@ -54,6 +60,7 @@ type RunSpec struct {
 	Volumes     []VolumeMount // Optional volume mounts
 	Args        []string      // Arguments passed to the command
 	NetworkMode string        // Optional docker --network value (e.g. "none" to disable networking). Empty = docker default. Ignored by the local runner.
+	Secrets     []Secret      // Files delivered into the container before it starts; never env, argv, or a host file. Docker only.
 	Stdout      io.Writer     // If non-nil, command stdout is written here; otherwise captured
 	Stderr      io.Writer     // If non-nil, command stderr is written here; otherwise captured
 	// Note: Executor field removed - Phase 2 feature when executor registry is designed

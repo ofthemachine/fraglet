@@ -9,13 +9,13 @@ import (
 
 func TestDockerRunBuilder_Network(t *testing.T) {
 	// Empty mode is a no-op (docker default networking).
-	got := newDockerRunBuilder("linux/amd64", false).Network("").Image("img").Build()
+	got := newDockerRunBuilder("run", "linux/amd64", false).Network("").Image("img").Build()
 	if slices.Contains(got, "--network") {
 		t.Fatalf("empty network mode should not add --network: %v", got)
 	}
 
 	// "none" adds the flag+value pair before the image.
-	got = newDockerRunBuilder("linux/amd64", false).Network("none").Image("img").Build()
+	got = newDockerRunBuilder("run", "linux/amd64", false).Network("none").Image("img").Build()
 	joined := strings.Join(got, " ")
 	if !strings.Contains(joined, "--network none") {
 		t.Fatalf("expected --network none in args, got: %v", got)

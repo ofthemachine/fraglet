@@ -169,6 +169,10 @@ func preflightValidate(inlineCode, scriptFile string, paramStrs []string, output
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(2)
 	}
+	if err := validateSecrets(code); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(2)
+	}
 
 	// --output-dir mounts /output live and copies out whatever lands there:
 	// there's no fixed relpath to declare or validate against when the

@@ -113,6 +113,7 @@ type containerRunSpec struct {
 	secretEnvNames []string
 	fragletPath    string
 	capture        bool
+	secrets        []runner.Secret
 }
 
 func runContainer(ctx context.Context, spec containerRunSpec) (ExecuteResult, error) {
@@ -153,6 +154,7 @@ func runContainer(ctx context.Context, spec containerRunSpec) (ExecuteResult, er
 		Stdout:      sink.stdout,
 		Stderr:      sink.stderr,
 		Volumes:     volumes,
+		Secrets:     spec.secrets,
 	})
 	if err != nil {
 		return ExecuteResult{}, fmt.Errorf("execution failed: %w", err)
@@ -331,6 +333,13 @@ func prepare(opts RunOptions) (spec containerRunSpec, inv receipt.Invocation, an
 	// --- Build env vars ---
 	envVars := buildEnvVars(finalMode, opts.EnvFlags)
 
+	// --- Resolve declared secrets: values from the caller's env, delivered as files ---
+	secrets, secretEnv, err := resolveSecrets(fraglet.ParseSecretDecls(code), opts.EnvFlags)
+	if err != nil {
+		return spec, inv, false, fmt.Errorf("Error: %w", err)
+	}
+	envVars = append(envVars, secretEnv...)
+
 	// --- Parse and resolve params (including file-shaped params) ---
 	var volumes []runner.VolumeMount
 	decls := fraglet.ParseParamDecls(code)
@@ -418,6 +427,7 @@ func prepare(opts RunOptions) (spec containerRunSpec, inv receipt.Invocation, an
 		stdin:         stdin,
 		fragletPath:   fragletMountPath,
 		capture:       false,
+		secrets:       secrets,
 	}
 	inv = receipt.Invocation{
 		ProcedureHash: receipt.ProcedureHash([]byte(code)),
@@ -684,4 +694,41 @@ func redactEnv(env []string, secrets []string) []string {
 		}
 	}
 	return redacted
+}
+
+// resolveSecrets reads each declared secret from the caller's environment.
+// The container gets the value only as a file (runner.Secret) plus the env
+// var NAME_FILE holding its path; the value itself is never an env var, so
+// forwarding a declared secret with -e is refused rather than quietly
+// exposing it. Nothing here reaches the receipt: the declarations are part
+// of the script, which procedure_hash already covers.
+func resolveSecrets(decls []fraglet.SecretDecl, envFlags []string) ([]runner.Secret, []string, error) {
+	if len(decls) == 0 {
+		return nil, nil, nil
+	}
+	forwarded := make(map[string]bool)
+	for _, name := range envNames(envFlags) {
+		forwarded[name] = true
+	}
+	var secrets []runner.Secret
+	var env, missing []string
+	for _, d := range decls {
+		if !fraglet.ValidSecretName(d.Name) {
+			return nil, nil, fmt.Errorf("secret=%s is not a valid secret name (see fragletc lint)", d.Name)
+		}
+		if forwarded[d.Name] || forwarded[d.FileEnv()] {
+			return nil, nil, fmt.Errorf("-e %s: %s is a declared secret; fragletc delivers it as the file $%s, so do not forward it as an environment variable", d.Name, d.Name, d.FileEnv())
+		}
+		value, ok := os.LookupEnv(d.Name)
+		if !ok || value == "" {
+			missing = append(missing, d.Name)
+			continue
+		}
+		secrets = append(secrets, runner.Secret{Path: d.ContainerPath(), Value: []byte(value)})
+		env = append(env, d.FileEnv()+"="+d.ContainerPath())
+	}
+	if len(missing) > 0 {
+		return nil, nil, fmt.Errorf("missing secret(s): %s -- set them in the environment fragletc runs in (e.g. `op run -- fragletc ...`)", strings.Join(missing, ", "))
+	}
+	return secrets, env, nil
 }

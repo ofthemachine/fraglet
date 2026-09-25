@@ -11,15 +11,15 @@ import (
 	"github.com/ofthemachine/fraglet/pkg/dockercli"
 )
 
-// dockerRunBuilder constructs "docker run ..." argv in a consistent order:
-// base (run, --rm, [-i when stdin], platform, hardening) → opts → image → args.
+// dockerRunBuilder constructs "docker run ..." (or "docker create ...") argv in a consistent order:
+// base (run|create, --rm, [-i when stdin], platform, hardening) → opts → image → args.
 // Use attachStdin true only when spec has stdin; otherwise the container exits when the program ends instead of waiting for stdin.
 type dockerRunBuilder struct {
 	args []string
 }
 
-func newDockerRunBuilder(platform string, attachStdin bool) *dockerRunBuilder {
-	args := []string{dockercli.Binary(), "run", "--rm"}
+func newDockerRunBuilder(verb, platform string, attachStdin bool) *dockerRunBuilder {
+	args := []string{dockercli.Binary(), verb, "--rm"}
 	if attachStdin {
 		args = append(args, "-i")
 	}
@@ -138,7 +138,13 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 	allEnv := spec.Env
 
 	attachStdin := spec.StdinReader != nil || spec.Stdin != ""
-	base := newDockerRunBuilder(platform, attachStdin).Network(spec.NetworkMode)
+	// With secrets the container is created, given its secret files, then
+	// started (see secrets.go); --rm still applies, so it removes itself on exit.
+	verb := "run"
+	if len(spec.Secrets) > 0 {
+		verb = "create"
+	}
+	base := newDockerRunBuilder(verb, platform, attachStdin).Network(spec.NetworkMode)
 	withCommon := func(b *dockerRunBuilder) *dockerRunBuilder {
 		return b.Env(allEnv).WorkDir(spec.WorkDir).Volumes(spec.Volumes)
 	}
@@ -167,6 +173,26 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 	default:
 		// Plain run: image + optional args.
 		args = withCommon(base).Image(spec.Container).Args(spec.Args...).Build()
+	}
+
+	var sc *secretContainer
+	if len(spec.Secrets) > 0 {
+		var err error
+		sc, err = createWithSecrets(ctx, args, spec.Secrets)
+		if err != nil {
+			if cleanup != nil {
+				cleanup()
+			}
+			return nil, err
+		}
+		args = sc.startArgs(attachStdin)
+		prev := cleanup
+		cleanup = func() {
+			sc.release()
+			if prev != nil {
+				prev()
+			}
+		}
 	}
 
 	dockerCmd := exec.CommandContext(ctx, args[0], args[1:]...)

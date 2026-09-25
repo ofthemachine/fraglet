@@ -37,6 +37,11 @@ func handleFragletHelp(scriptFile, inlineCode string) {
 	if when != "" {
 		fmt.Fprintf(os.Stdout, "When: %s\n\n", when)
 	}
+	if secrets := fraglet.ParseSecretDecls(code); len(secrets) > 0 {
+		fmt.Fprintf(os.Stdout, "Secrets (read from your environment; delivered to the tool as files, never recorded):\n")
+		writeSecretList(os.Stdout, secrets)
+		fmt.Fprintln(os.Stdout)
+	}
 
 	if len(decls) == 0 {
 		fmt.Printf("No parameters declared in %s.\n", label)
@@ -231,4 +236,39 @@ Subcommands:
   lint          Check fraglet headers against fragletc's grammar and conventions
                 Use "fragletc lint --help" for the rule list
 `)
+}
+
+// writeSecretList prints one line per declared secret: the env var the
+// caller must set and what it is. Shared with the missing-secret error.
+func writeSecretList(w io.Writer, decls []fraglet.SecretDecl) {
+	for _, d := range decls {
+		desc := ""
+		if d.Description != "" {
+			desc = " — " + d.Description
+		}
+		fmt.Fprintf(w, "  %-12s (env var; tool reads $%s)%s\n", d.Name, d.FileEnv(), desc)
+	}
+}
+
+// validateSecrets fails fast, before any container starts, when a declared
+// secret is not set in the caller's environment.
+func validateSecrets(code string) error {
+	var missing []fraglet.SecretDecl
+	for _, d := range fraglet.ParseSecretDecls(code) {
+		if os.Getenv(d.Name) == "" {
+			missing = append(missing, d)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	var buf strings.Builder
+	names := make([]string, len(missing))
+	for i, d := range missing {
+		names[i] = d.Name
+	}
+	fmt.Fprintf(&buf, "missing secret(s): %s\n\n", strings.Join(names, ", "))
+	writeSecretList(&buf, missing)
+	fmt.Fprintf(&buf, "\nSet them in the environment fragletc runs in, e.g. export NAME=... or op run -- fragletc ...\n")
+	return fmt.Errorf("%s", strings.TrimRight(buf.String(), "\n"))
 }
