@@ -112,7 +112,7 @@ func (i Invocation) MemoKey() (string, bool) {
 	if i.Unbound() != nil {
 		return "", false
 	}
-	return memoKey(i.ProcedureHash, i.Params, i.Inputs), true
+	return Key(i.ProcedureHash, i.Params, i.Inputs), true
 }
 
 // Class is the execution class a reader derives: Hermetic when the
@@ -222,11 +222,14 @@ func SumFile(path string) (Digest, error) {
 // and header included.
 func ProcedureHash(code []byte) string { return Hash(sha256.Sum256(code)) }
 
-// memoKey is the formula in the package doc: params and inputs merge into
-// one sorted "lower(key):value" space; the key is
+// Key is the memo-key formula in the package doc, exported so every
+// consumer (operon's local runs and its mesh among them) computes the one
+// key instead of re-deriving it: params and inputs merge into one sorted
+// "lower(key):value" space (inputs win on a clash); the key is
 // sha256(procedureHash + "\n" + rctx + "\n" + join(pairs, "\n") + "\n")
-// with rctx, a reserved runtime-context slot, always empty here.
-func memoKey(procedureHash string, params, inputs map[string]string) string {
+// with rctx, a reserved runtime-context slot, always empty. procedureHash
+// is opaque here: any stable identity of the computation will do.
+func Key(procedureHash string, params, inputs map[string]string) string {
 	merged := make(map[string]string, len(params)+len(inputs))
 	for k, v := range params {
 		merged[k] = v
