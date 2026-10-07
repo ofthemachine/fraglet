@@ -47,12 +47,13 @@ var knownParamModifiers = map[string]bool{
 	"file":     false,
 	"default":  true,
 	"envvar":   true,
+	"kind":     true,
 }
 
 // descTrailingModifiers are modifier spellings that, found inside a
 // description's prose, mean the author put description= before another
 // modifier — parseParamToken has swallowed that modifier into the prose.
-var descTrailingModifiers = []string{":required", ":optional", ":file", ":default=", ":envvar="}
+var descTrailingModifiers = []string{":required", ":optional", ":file", ":default=", ":envvar=", ":kind="}
 
 // Lint checks a fraglet script's header against fragletc's own grammar and
 // the conventions that keep a header honest about its body. It is a pure
@@ -164,7 +165,7 @@ func lintParamToken(tok string, lineNo int, seen map[string]int, body string) []
 		switch {
 		case !known:
 			out = append(out, Finding{lineNo, "param-unknown-modifier", Error,
-				fmt.Sprintf("param=%s: modifier %q is not one fragletc understands (required, optional, file, default=, envvar=, description=/d=)", alias, part)})
+				fmt.Sprintf("param=%s: modifier %q is not one fragletc understands (required, optional, file, default=, envvar=, kind=, description=/d=)", alias, part)})
 		case wantsValue && !hasValue:
 			out = append(out, Finding{lineNo, "param-unknown-modifier", Error,
 				fmt.Sprintf("param=%s: modifier %q needs a value (%s=...)", alias, part, name)})
@@ -173,6 +174,16 @@ func lintParamToken(tok string, lineNo int, seen map[string]int, body string) []
 				fmt.Sprintf("param=%s: modifier %q does not take a value", alias, part)})
 		}
 		mods[name] = value
+	}
+	if k, ok := mods["kind"]; ok {
+		kind, err := ParseKind(k)
+		if err != nil {
+			out = append(out, Finding{lineNo, "param-kind", Error, fmt.Sprintf("param=%s: %v", alias, err)})
+		} else if def, ok := mods["default"]; ok {
+			if _, err := kind.Normalize(def); err != nil {
+				out = append(out, Finding{lineNo, "param-kind", Error, fmt.Sprintf("param=%s: default %v", alias, err)})
+			}
+		}
 	}
 
 	if !paramAliasRe.MatchString(alias) {

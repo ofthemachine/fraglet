@@ -14,7 +14,7 @@ func TestMemoKey_KnownAnswers(t *testing.T) {
 	proc := "sha256:0000000000000000000000000000000000000000000000000000000000000001"
 	emptyStdin := "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
-	got := memoKey(proc,
+	got := Key(proc,
 		map[string]string{"Location": "Mount Fuji", "day": "2"},
 		map[string]string{AnonKey: emptyStdin, "tex_source": "sha256:00000000000000000000000000000000000000000000000000000000000000ab"},
 	)
@@ -22,15 +22,15 @@ func TestMemoKey_KnownAnswers(t *testing.T) {
 		t.Fatalf("MemoKeyV2 = %s, want %s", got, want)
 	}
 
-	got = memoKey(proc, nil, map[string]string{AnonKey: emptyStdin})
+	got = Key(proc, nil, map[string]string{AnonKey: emptyStdin})
 	if want := "sha256:c9d8925c0d91e46b714c48cdc278fb3a7dd7bb89b81092dda6016b8c612c4460"; got != want {
 		t.Fatalf("MemoKeyV2 (no params) = %s, want %s", got, want)
 	}
 }
 
 func TestMemoKey_ParamOrderIrrelevant(t *testing.T) {
-	a := memoKey("sha256:p", map[string]string{"x": "1", "y": "2"}, map[string]string{AnonKey: "sha256:s"})
-	b := memoKey("sha256:p", map[string]string{"y": "2", "x": "1"}, map[string]string{AnonKey: "sha256:s"})
+	a := Key("sha256:p", map[string]string{"x": "1", "y": "2"}, map[string]string{AnonKey: "sha256:s"})
+	b := Key("sha256:p", map[string]string{"y": "2", "x": "1"}, map[string]string{AnonKey: "sha256:s"})
 	if a != b {
 		t.Fatal("key depends on map iteration order")
 	}
