@@ -166,3 +166,17 @@ func TestBuild_RoundTripsFlatJSON(t *testing.T) {
 		t.Fatalf("stream receipt must not carry a memo key: %s", data)
 	}
 }
+
+func TestBuild_ProcedureIsAFileNameNotAPath(t *testing.T) {
+	for in, want := range map[string]string{
+		"/Users/someone/work/tools/transform.py": "transform.py",
+		"tools/transform.py":                     "transform.py",
+		"transform.py":                           "transform.py",
+		"-":                                      "-",
+		"":                                       "",
+	} {
+		if got := Build(Invocation{}, Outcome{}, "test", in).Procedure; got != want {
+			t.Errorf("Build(%q).Procedure = %q, want %q", in, got, want)
+		}
+	}
+}
