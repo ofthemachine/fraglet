@@ -143,8 +143,9 @@ type Outcome struct {
 type Receipt struct {
 	Schema   string `json:"schema"`
 	Fragletc string `json:"fragletc"`
-	// Procedure is the script as it was named on the command line, for a
-	// reader; ProcedureHash is its identity.
+	// Procedure is the script's file name, for a reader; ProcedureHash is
+	// its identity. Never its directory: a receipt travels, and a path
+	// says whose disk (and user) it ran on.
 	Procedure string `json:"procedure,omitempty"`
 
 	Invocation
@@ -155,7 +156,8 @@ type Receipt struct {
 	Outcome
 }
 
-// Build assembles a receipt. The memo key is the only derived field.
+// Build assembles a receipt for the script procedure names (kept by its
+// file name only). The memo key is the only derived field.
 func Build(inv Invocation, out Outcome, fragletc, procedure string) Receipt {
 	if inv.Params == nil {
 		inv.Params = map[string]string{}
@@ -171,6 +173,9 @@ func Build(inv Invocation, out Outcome, fragletc, procedure string) Receipt {
 	}
 	if out.Outputs == nil {
 		out.Outputs = map[string]string{}
+	}
+	if procedure != "" && procedure != "-" {
+		procedure = filepath.Base(procedure)
 	}
 	r := Receipt{Schema: Schema, Fragletc: fragletc, Procedure: procedure, Invocation: inv, Outcome: out}
 	r.MemoKey, _ = inv.MemoKey()
