@@ -108,6 +108,7 @@ func Lint(code string) []Finding {
 		}
 	}
 
+	out = append(out, lintShebang(code)...)
 	if !sawNetwork {
 		out = append(out, Finding{0, "network-missing", Warning,
 			"no #: network= line; declare network=none (enforced hermetic) or network=required"})

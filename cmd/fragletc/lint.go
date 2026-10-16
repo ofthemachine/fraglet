@@ -23,7 +23,8 @@ func handleLint() {
 	lintFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, `Usage: fragletc lint [--strict] <script-or-dir>...
 
-Lint fraglet headers (#: lines) against fragletc's own grammar and conventions.
+Lint fraglet headers (#: lines, and the shebang that runs them) against
+fragletc's own grammar and conventions.
 
 A file named explicitly is always linted. A directory is walked, and only
 files whose shebang invokes fragletc are linted (hidden directories are
@@ -42,6 +43,10 @@ Errors are declarations fragletc misreads or silently drops:
   secret-name                  secret=NAME[:d=...] on its own line; NAME is [A-Z][A-Z0-9_]*, not FRAGLET_*
   secret-duplicate             same secret declared twice
   secret-param-collision       a param's env var equals a secret's NAME or NAME_FILE
+  shebang-env-split            a shebang with arguments must start #!/usr/bin/env -S fragletc
+  shebang-flag                 the shebang carries a flag fragletc does not have
+  shebang-flag-value           a flag that takes a value (-v, --image, ...) is followed by another flag
+  shebang-positional           a word after the flags, which fragletc would read as the script
 
 Warnings are conventions (errors under --strict):
   param-no-description         every param should say what to pass
@@ -52,6 +57,7 @@ Warnings are conventions (errors under --strict):
   when-missing                 no tool-level when= line (when should an agent use this?)
   secret-no-description        every secret should say what credential to provide
   secret-unused                the body never references the secret (read $NAME_FILE)
+  shebang-image-unpinned       --image names a tag, not name@sha256:..., so a run may change later
 
 Options:
   --strict    Exit 1 on warnings too

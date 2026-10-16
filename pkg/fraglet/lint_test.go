@@ -1,6 +1,7 @@
 package fraglet
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -63,7 +64,7 @@ func TestLint_CleanScriptHasNoFindings(t *testing.T) {
 // on lines 1-3) followed by the given header lines, so a caller's first
 // header line is line 4, and then the body.
 func withHeader(headerLines string, body string) string {
-	prelude := "#!/usr/bin/env -S fragletc --image x\n#: d=Test tool.\n#: when=Use when testing.\n"
+	prelude := "#!/usr/bin/env -S fragletc --image x@sha256:abc\n#: d=Test tool.\n#: when=Use when testing.\n"
 	if body == "" {
 		body = "import os\nprint(os.environ.get('X', ''))\n"
 	}
@@ -196,7 +197,7 @@ func TestLint_NetworkRules(t *testing.T) {
 }
 
 func TestLint_DescMissing(t *testing.T) {
-	fs := Lint("#!/usr/bin/env -S fragletc --image x\n#: network=none\nprint(1)\n")
+	fs := Lint("#!/usr/bin/env -S fragletc --image x@sha256:abc\n#: network=none\nprint(1)\n")
 	f := findRule(t, fs, "desc-missing")
 	if f.Severity != Warning {
 		t.Fatalf("finding = %+v", f)
@@ -233,7 +234,7 @@ func TestLint_FindingsSortedByLine(t *testing.T) {
 }
 
 func TestLint_WhenMissing(t *testing.T) {
-	header := "#!/usr/bin/env -S fragletc --image x\n#: d=Test tool.\n#: network=none\n"
+	header := "#!/usr/bin/env -S fragletc --image x@sha256:abc\n#: d=Test tool.\n#: network=none\n"
 	f := findRule(t, Lint(header+"print(1)\n"), "when-missing")
 	if f.Severity != Warning || f.Line != 0 {
 		t.Fatalf("finding = %+v", f)
@@ -249,4 +250,34 @@ func TestLint_StdinValue(t *testing.T) {
 	assertNoRule(t, Lint(withHeader("#: network=none\n#: stdin=buffer\n", "print(1)\n")), "stdin-value")
 	// Reading stdin without declaring it is fine: undeclared means buffer.
 	assertNoRule(t, Lint(withHeader("#: network=none\n", "import sys\nprint(sys.stdin.read())\n")), "stdin-undeclared")
+}
+
+// A shebang is read as fragletc reads it: a value flag that swallows the
+// next flag, a word fragletc would take for the script, an unknown flag,
+// arguments not passed through env -S, an image not pinned; the forms in
+// use (a pinned image, a vein) are clean.
+func TestLint_Shebang(t *testing.T) {
+	body := strings.SplitN(cleanScript, "\n", 2)[1]
+	for shebang, want := range map[string]string{
+		"#!/usr/bin/env -S fragletc -v --image python:3-alpine python3":                     "shebang-flag-value",
+		"#!/usr/bin/env -S fragletc --image ofthemachine/python3@sha256:abc python3":        "shebang-positional",
+		"#!/usr/bin/env -S fragletc --imgae ofthemachine/python3@sha256:abc":                "shebang-flag",
+		"#!/usr/bin/env fragletc --vein=python":                                             "shebang-env-split",
+		"#!/usr/bin/env -S fragletc --image python:3-alpine":                                "shebang-image-unpinned",
+		"#!/usr/bin/env -S fragletc --image":                                                "shebang-flag-value",
+		"#!/usr/bin/env -S fragletc --vein=python":                                          "",
+		"#!/usr/bin/env -S fragletc -v python":                                              "",
+		"#!/usr/bin/env -S fragletc --image=ofthemachine/python3@sha256:abc --network none": "",
+		"#!/usr/local/bin/fragletc":                                                         "",
+	} {
+		var got []string
+		for _, r := range rules(Lint(shebang + "\n" + body)) {
+			if strings.HasPrefix(r, "shebang-") {
+				got = append(got, r)
+			}
+		}
+		if (want == "" && len(got) != 0) || (want != "" && !slices.Contains(got, want)) {
+			t.Errorf("%s: shebang findings %v, want %q", shebang, got, want)
+		}
+	}
 }

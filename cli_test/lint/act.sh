@@ -40,3 +40,8 @@ echo ""
 echo "=== Test 8: missing path, exit 2 ==="
 fragletc lint does-not-exist.py 2>&1
 echo "exit=$?"
+
+echo ""
+echo "=== Test 9: the shebang is linted as fragletc will read it ==="
+fragletc lint shebang_bad.py shebang_split.py
+echo "exit=$?"

@@ -6,7 +6,7 @@ import (
 )
 
 func TestParseSecretDecls(t *testing.T) {
-	code := `#!/usr/bin/env -S fragletc --image x
+	code := `#!/usr/bin/env -S fragletc --image x@sha256:abc
 #: d=Tool. It mentions secret=NOT_A_DECL in prose.
 #: secret=HA_TOKEN:d=Home Assistant long-lived token: with a colon
 #: secret=API_KEY
@@ -44,7 +44,7 @@ func TestValidSecretName(t *testing.T) {
 }
 
 func TestLintSecrets(t *testing.T) {
-	code := `#!/usr/bin/env -S fragletc --image x
+	code := `#!/usr/bin/env -S fragletc --image x@sha256:abc
 #: d=Tool
 #: when=Use when testing
 #: network=required
@@ -77,7 +77,7 @@ print(os.environ["HA_TOKEN_FILE"], os.environ["UNDESCRIBED_FILE"], os.environ["C
 }
 
 func TestLintSecretClean(t *testing.T) {
-	code := `#!/usr/bin/env -S fragletc --image x
+	code := `#!/usr/bin/env -S fragletc --image x@sha256:abc
 #: d=Tool
 #: when=Use when testing
 #: network=required

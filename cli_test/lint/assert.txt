@@ -9,7 +9,7 @@ offenders.py:4: error: param-desc-not-last: param=engine: description must be th
 offenders.py:5: error: param-required-with-default: param=n: default= silently exempts required; declare one or the other
 offenders.py:6: warning: param-optional-redundant: param=count: optional is the default and does nothing; omit it
 offenders.py:7: error: param-alias: param=Input-File: alias must match ^[a-z][a-z0-9_]*(\.[a-z0-9]+)?$ (it becomes the env var INPUT-FILE)
-offenders.py:8: error: param-unknown-modifier: param=url: modifier "requried" is not one fragletc understands (required, optional, file, default=, envvar=, description=/d=)
+offenders.py:8: error: param-unknown-modifier: param=url: modifier "requried" is not one fragletc understands (required, optional, file, default=, envvar=, kind=, description=/d=)
 offenders.py:9: error: param-duplicate: param=url already declared on line 8; fragletc keeps the first and drops this one
 offenders.py:10: warning: param-unused: param=ghost is declared but the body never references GHOST
 offenders.py:11: warning: param-no-description: param=bare has no description; add :d=<what the caller should pass>
@@ -54,3 +54,11 @@ exit=2
 === Test 8: missing path, exit 2 ===
 stat does-not-exist.py: no such file or directory
 exit=2
+
+=== Test 9: the shebang is linted as fragletc will read it ===
+shebang_bad.py:1: error: shebang-flag: fragletc has no flag --bogus a shebang can carry (fragletc --help lists them)
+shebang_bad.py:1: error: shebang-flag-value: -v takes a value, but is followed by --mode (e.g. -v python, or --image name@sha256:…)
+shebang_bad.py:1: warning: shebang-image-unpinned: image python:3.12 is not pinned: a tag can move, so the same script may run differently later; pin it as name@sha256:…
+shebang_split.py:1: error: shebang-env-split: a shebang's arguments reach fragletc as one word on Linux: start it #!/usr/bin/env -S fragletc …
+2 files linted, 3 errors, 1 warnings
+exit=1
