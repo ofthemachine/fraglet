@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -50,6 +51,15 @@ type ExecuteSpec struct {
 	// what Execute prints when Verbose is set.
 	SecretEnvNames []string
 
+	// Secrets are the values of the script's "#: secret=" declarations, by
+	// name: the caller (a host, which knows where its values live) supplies
+	// them; Execute never reads its own process environment for them. Each
+	// declared one is delivered as fragletc delivers it, the read-only file
+	// fraglet.SecretMountDir/NAME with its path in NAME_FILE, never as an env
+	// var; a declared name missing here, or one Env also sets, is refused.
+	// Values for names the script does not declare are not delivered.
+	Secrets map[string]string
+
 	NetworkMode string
 	Args        []string
 	Stdin       io.Reader
@@ -78,10 +88,15 @@ type ExecuteResult struct {
 // (e.g. to record the run) and live streaming from the same run.
 func Execute(ctx context.Context, spec ExecuteSpec) (ExecuteResult, error) {
 	networkMode := resolveNetworkMode(spec.NetworkMode, spec.Code)
+	secrets, secretEnv, err := SecretsFor(spec.Code, spec.Env, spec.Secrets)
+	if err != nil {
+		return ExecuteResult{}, err
+	}
 	return runContainer(ctx, containerRunSpec{
 		image:          spec.Image,
 		code:           spec.Code,
-		env:            spec.Env,
+		env:            append(slices.Clone(spec.Env), secretEnv...),
+		secrets:        secrets,
 		volumes:        spec.Volumes,
 		outputHostDir:  spec.OutputHostDir,
 		networkMode:    networkMode,
@@ -334,7 +349,7 @@ func prepare(opts RunOptions) (spec containerRunSpec, inv receipt.Invocation, an
 	envVars := buildEnvVars(finalMode, opts.EnvFlags)
 
 	// --- Resolve declared secrets: values from the caller's env, delivered as files ---
-	secrets, secretEnv, err := resolveSecrets(fraglet.ParseSecretDecls(code), opts.EnvFlags)
+	secrets, secretEnv, err := resolveSecrets(fraglet.ParseSecretDecls(code), opts.EnvFlags, os.LookupEnv)
 	if err != nil {
 		return spec, inv, false, fmt.Errorf("Error: %w", err)
 	}
@@ -696,13 +711,28 @@ func redactEnv(env []string, secrets []string) []string {
 	return redacted
 }
 
-// resolveSecrets reads each declared secret from the caller's environment.
+// SecretsFor resolves code's "#: secret=" declarations against values (a
+// caller's, by name) into what a runner delivers: the files, and the
+// NAME_FILE env vars that name them. env is what else the run sets; a
+// declared name (or its NAME_FILE) in it is refused, and a declared name
+// values lacks is missing. Execute uses it, and so may a caller that runs a
+// container itself (a bare image), so secrets reach every container the same
+// way.
+func SecretsFor(code string, env []string, values map[string]string) ([]runner.Secret, []string, error) {
+	return resolveSecrets(fraglet.ParseSecretDecls(code), env, func(name string) (string, bool) {
+		v, ok := values[name]
+		return v, ok
+	})
+}
+
+// resolveSecrets reads each declared secret through lookup (fragletc: its
+// own environment; a library caller: the values it supplies).
 // The container gets the value only as a file (runner.Secret) plus the env
 // var NAME_FILE holding its path; the value itself is never an env var, so
 // forwarding a declared secret with -e is refused rather than quietly
 // exposing it. Nothing here reaches the receipt: the declarations are part
 // of the script, which procedure_hash already covers.
-func resolveSecrets(decls []fraglet.SecretDecl, envFlags []string) ([]runner.Secret, []string, error) {
+func resolveSecrets(decls []fraglet.SecretDecl, envFlags []string, lookup func(string) (string, bool)) ([]runner.Secret, []string, error) {
 	if len(decls) == 0 {
 		return nil, nil, nil
 	}
@@ -719,7 +749,7 @@ func resolveSecrets(decls []fraglet.SecretDecl, envFlags []string) ([]runner.Sec
 		if forwarded[d.Name] || forwarded[d.FileEnv()] {
 			return nil, nil, fmt.Errorf("-e %s: %s is a declared secret; fragletc delivers it as the file $%s, so do not forward it as an environment variable", d.Name, d.Name, d.FileEnv())
 		}
-		value, ok := os.LookupEnv(d.Name)
+		value, ok := lookup(d.Name)
 		if !ok || value == "" {
 			missing = append(missing, d.Name)
 			continue
