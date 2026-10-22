@@ -12,6 +12,7 @@ var shebangValueFlags = map[string]bool{
 	"vein": true, "v": true, "image": true, "i": true, "mode": true, "m": true,
 	"network": true, "fraglet-path": true, "output-dir": true, "e": true,
 	"param": true, "p": true, "output": true, "receipt": true, "stdin": true,
+	"retry": true, "timeout": true,
 }
 
 // lintShebang checks a fragletc shebang as fragletc will read it: every

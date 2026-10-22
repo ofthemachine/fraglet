@@ -2,20 +2,22 @@ package runner
 
 import (
 	"context"
+	"os/exec"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDockerRunBuilder_Network(t *testing.T) {
 	// Empty mode is a no-op (docker default networking).
-	got := newDockerRunBuilder("run", "linux/amd64", false).Network("").Image("img").Build()
+	got := newDockerRunBuilder("run", "fraglet-test", "linux/amd64", false).Network("").Image("img").Build()
 	if slices.Contains(got, "--network") {
 		t.Fatalf("empty network mode should not add --network: %v", got)
 	}
 
 	// "none" adds the flag+value pair before the image.
-	got = newDockerRunBuilder("run", "linux/amd64", false).Network("none").Image("img").Build()
+	got = newDockerRunBuilder("run", "fraglet-test", "linux/amd64", false).Network("none").Image("img").Build()
 	joined := strings.Join(got, " ")
 	if !strings.Contains(joined, "--network none") {
 		t.Fatalf("expected --network none in args, got: %v", got)
@@ -138,5 +140,30 @@ func TestDockerRunner_Run_NoContainer(t *testing.T) {
 	_, err := r.Run(ctx, spec)
 	if err == nil {
 		t.Error("Expected error when container not specified")
+	}
+}
+
+// A run its context ends takes its container with it: killing the docker
+// client alone would leave the container running.
+func TestDockerRunner_CancelRemovesContainer(t *testing.T) {
+	r := &dockerRunner{}
+	if !r.Available() {
+		t.Skip("Docker not available, skipping test")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	start := time.Now()
+	_, _ = r.Run(ctx, RunSpec{Command: "sleep 37", Container: "alpine:latest"})
+	if took := time.Since(start); took > 20*time.Second {
+		t.Fatalf("a cancelled run took %s", took)
+	}
+	out, err := exec.Command("docker", "ps", "-a", "--no-trunc", "--format", "{{.Names}} {{.Command}}").Output()
+	if err != nil {
+		t.Fatalf("docker ps: %v", err)
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, "fraglet-") && strings.Contains(line, "sleep 37") {
+			t.Fatalf("the cancelled run's container is still there: %s", line)
+		}
 	}
 }

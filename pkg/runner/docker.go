@@ -3,6 +3,8 @@ package runner
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os/exec"
@@ -18,8 +20,8 @@ type dockerRunBuilder struct {
 	args []string
 }
 
-func newDockerRunBuilder(verb, platform string, attachStdin bool) *dockerRunBuilder {
-	args := []string{dockercli.Binary(), verb, "--rm"}
+func newDockerRunBuilder(verb, name, platform string, attachStdin bool) *dockerRunBuilder {
+	args := []string{dockercli.Binary(), verb, "--rm", "--name", name}
 	if attachStdin {
 		args = append(args, "-i")
 	}
@@ -144,7 +146,14 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 	if len(spec.Secrets) > 0 {
 		verb = "create"
 	}
-	base := newDockerRunBuilder(verb, platform, attachStdin).Network(spec.NetworkMode)
+	// Every container is named, so a run its context ends (a deadline, a
+	// cancel) removes the container itself: killing the docker client alone
+	// would leave it running.
+	name, err := containerName()
+	if err != nil {
+		return nil, err
+	}
+	base := newDockerRunBuilder(verb, name, platform, attachStdin).Network(spec.NetworkMode)
 	withCommon := func(b *dockerRunBuilder) *dockerRunBuilder {
 		return b.Env(allEnv).WorkDir(spec.WorkDir).Volumes(spec.Volumes)
 	}
@@ -196,6 +205,10 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 	}
 
 	dockerCmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	dockerCmd.Cancel = func() error {
+		removeContainer(name)
+		return dockerCmd.Process.Kill()
+	}
 
 	if spec.StdinReader != nil {
 		dockerCmd.Stdin = spec.StdinReader
@@ -314,6 +327,21 @@ func (r *dockerRunner) RunStreaming(ctx context.Context, spec RunSpec) (*Streami
 		Done:     doneChan,
 		ExitCode: exitCodeChan,
 	}, nil
+}
+
+// containerName is a fresh name for one run's container.
+func containerName() (string, error) {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("container name: %w", err)
+	}
+	return "fraglet-" + hex.EncodeToString(b), nil
+}
+
+// removeContainer force-removes a container by name or id; harmless when it
+// is already gone.
+func removeContainer(id string) {
+	_ = exec.Command(dockercli.Binary(), "rm", "-f", id).Run()
 }
 
 // ensureDockerImage checks if the image exists locally; if not, it pulls it for the given platform.

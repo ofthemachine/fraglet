@@ -86,9 +86,7 @@ func (sc *secretContainer) startArgs(attachStdin bool) []string {
 }
 
 // remove force-removes the container. It is harmless after --rm already has.
-func (sc *secretContainer) remove() {
-	_ = exec.Command(dockercli.Binary(), "rm", "-f", sc.id).Run()
-}
+func (sc *secretContainer) remove() { removeContainer(sc.id) }
 
 // release ends the interrupt watch and removes the container. Idempotent.
 func (sc *secretContainer) release() {

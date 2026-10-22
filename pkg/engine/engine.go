@@ -295,12 +295,21 @@ func runWithReport(ctx context.Context, opts RunOptions) (RunReport, error) {
 
 	stdoutHash := receipt.NewHasher()
 	spec.stdout = io.MultiWriter(opts.Stdout, stdoutHash)
-	spec.stderr = opts.Stderr
+	stderrHash, stderrTail := receipt.NewHasher(), &receipt.Tail{}
+	spec.stderr = io.MultiWriter(opts.Stderr, stderrHash, stderrTail)
 
 	var out receipt.Outcome
 	out.Started = time.Now().UTC()
 	result, err := runContainer(ctx, spec)
 	out.Finished = time.Now().UTC()
+	out.Stderr = stderrHash.Digest()
+	if err != nil || result.ExitCode != 0 {
+		masks := make([][]byte, 0, len(spec.secrets))
+		for _, s := range spec.secrets {
+			masks = append(masks, s.Value)
+		}
+		out.StderrTail = stderrTail.String(masks...)
+	}
 	if err != nil {
 		return RunReport{Invocation: inv, Outcome: out}, err
 	}
