@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ofthemachine/fraglet/pkg/engine"
 	"github.com/ofthemachine/fraglet/pkg/receipt"
@@ -57,6 +58,8 @@ func main() {
 	network := flag.String("network", "", "Container network mode (e.g. 'none', 'bridge', 'host'; defaults to 'none' when '#: network=none' is declared, otherwise Docker default bridge)")
 	inlineCode := flag.String("c", "", "Program passed in as string (like python -c)")
 	outputDir := flag.String("output-dir", "", "Copy everything the fraglet writes to /output into this host directory after the run — for a fraglet whose output filename isn't known ahead of time (e.g. wrapping a real CLI tool's own -o/default naming). No declared-output= needed: whatever lands in /output is copied out, overwriting same-named files, same as a locally installed tool would. Mutually exclusive with --output.")
+	retries := flag.Int("retry", 0, "Run again, up to this many times, while the fraglet exits 75 (temporary failure: a rate limit, a server down for a moment), waiting 1s, 2s, 4s… (jittered) between runs; only the last run's stdout and receipt count")
+	timeout := flag.Duration("timeout", 0, "End the run (retries and waits included) after this long, e.g. 90s or 2m; a run it ends exits 124 and its receipt says so")
 	var envFlags envListFlag
 	flag.Var(&envFlags, "e", "Environment variable to forward (repeatable, e.g. -e FOO -e BAR=val)")
 
@@ -170,9 +173,28 @@ func main() {
 		StdinMode:     pre.stdin,
 	}
 
-	report, err := engine.RunWithReport(context.Background(), opts)
+	ctx := context.Background()
+	if *timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, *timeout)
+		defer cancel()
+	}
+	report, err := engine.RunWithRetry(ctx, opts, engine.Retry{Times: *retries, Waiting: func(n int, wait time.Duration) {
+		fmt.Fprintf(os.Stderr, "fragletc: exit %d (temporary): retry %d of %d in %s\n", engine.ExitTempFail, n, *retries, wait.Round(100*time.Millisecond))
+	}})
+	if report.ExitCode == engine.ExitTimeout && err == nil && ctx.Err() != nil {
+		fmt.Fprintf(os.Stderr, "fragletc: timed out after %s\n", *timeout)
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
+		// A run that got as far as knowing what it would run still gets a
+		// receipt (exit 1, the error as its tail), so whoever asked for it
+		// can say which step failed and why.
+		if report.ProcedureHash != "" {
+			report.ExitCode = 1
+			report.StderrTail = strings.TrimSpace(report.StderrTail + "\nfragletc: " + err.Error())
+			writeReceipt(pre.receipt, scriptFile, report)
+		}
 		os.Exit(1)
 	}
 	exitCode := report.ExitCode
@@ -216,14 +238,21 @@ func main() {
 		}
 	}
 
-	if dest := receiptDestination(pre.receipt, os.Getenv("FRAGLETC_RECEIPT_DIR"), scriptFile, report); dest != "" {
-		r := receipt.Build(report.Invocation, report.Outcome, loadBuildInfo().Version, scriptFile)
-		if err := r.Write(dest); err != nil {
-			fmt.Fprintf(os.Stderr, "--receipt: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Fprintf(os.Stderr, "fragletc: receipt -> %s\n", dest)
-	}
-
+	writeReceipt(pre.receipt, scriptFile, report)
 	os.Exit(exitCode)
+}
+
+// writeReceipt writes the run's receipt where --receipt or
+// FRAGLETC_RECEIPT_DIR says, if either does; failing to is fatal.
+func writeReceipt(explicit, scriptFile string, report engine.RunReport) {
+	dest := receiptDestination(explicit, os.Getenv("FRAGLETC_RECEIPT_DIR"), scriptFile, report)
+	if dest == "" {
+		return
+	}
+	r := receipt.Build(report.Invocation, report.Outcome, loadBuildInfo().Version, scriptFile)
+	if err := r.Write(dest); err != nil {
+		fmt.Fprintf(os.Stderr, "--receipt: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Fprintf(os.Stderr, "fragletc: receipt -> %s\n", dest)
 }

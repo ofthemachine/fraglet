@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -138,7 +140,7 @@ func TestBuild_RoundTripsFlatJSON(t *testing.T) {
 	if err := json.Unmarshal(data, &m); err != nil {
 		t.Fatal(err)
 	}
-	for _, k := range []string{"schema", "fragletc", "procedure", "procedure_hash", "image", "network", "stdin_mode", "params", "inputs", "argv", "env", "memo_key", "started", "finished", "exit_code", "stdout", "outputs"} {
+	for _, k := range []string{"schema", "fragletc", "procedure", "procedure_hash", "image", "network", "stdin_mode", "params", "inputs", "argv", "env", "memo_key", "started", "finished", "exit_code", "stdout", "stderr", "outputs"} {
 		if _, ok := m[k]; !ok {
 			t.Fatalf("missing %q in %s", k, data)
 		}
@@ -178,5 +180,22 @@ func TestBuild_ProcedureIsAFileNameNotAPath(t *testing.T) {
 		if got := Build(Invocation{}, Outcome{}, "test", in).Procedure; got != want {
 			t.Errorf("Build(%q).Procedure = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestTail(t *testing.T) {
+	var tail Tail
+	_, _ = tail.Write([]byte("starting\nkey sk-123 refused\n"))
+	if got := tail.String([]byte("sk-123")); got != "starting\nkey *** refused" {
+		t.Fatalf("a short tail is whole, masked: %q", got)
+	}
+	var long Tail
+	for i := 0; i < 500; i++ {
+		_, _ = long.Write([]byte(fmt.Sprintf("line %03d of noise\n", i)))
+	}
+	_, _ = long.Write([]byte("Error: HTTP 429 Too Many Requests\n"))
+	got := long.String()
+	if len(got) > StderrTailBytes || !strings.HasSuffix(got, "Error: HTTP 429 Too Many Requests") || !strings.HasPrefix(got, "line ") {
+		t.Fatalf("a long tail keeps its last whole lines: %d bytes, %q…", len(got), got[:40])
 	}
 }

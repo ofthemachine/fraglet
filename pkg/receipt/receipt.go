@@ -133,6 +133,12 @@ type Outcome struct {
 	ExitCode int       `json:"exit_code"`
 	// Stdout is always recorded, whether or not it is the anonymous output.
 	Stdout Digest `json:"stdout"`
+	// Stderr is what the run wrote to stderr, by digest.
+	Stderr Digest `json:"stderr"`
+	// StderrTail is why a failed run failed, for a reader holding only the
+	// receipt: the last whole lines of its stderr (at most StderrTailBytes),
+	// every secret value it was given masked. Absent when the run succeeded.
+	StderrTail string `json:"stderr_tail,omitempty"`
 	// Outputs: <relpath> -> hash for every file written under /output, or
 	// AnonKey -> stdout hash when the script declares no output=.
 	Outputs map[string]string `json:"outputs"`
@@ -275,4 +281,44 @@ func (w *Hasher) Digest() Digest {
 	var sum [32]byte
 	copy(sum[:], w.h.Sum(nil))
 	return Digest{Hash: Hash(sum), Bytes: w.bytes}
+}
+
+// StderrTailBytes bounds Outcome.StderrTail.
+const StderrTailBytes = 2048
+
+// Tail keeps the end of what is written to it, for Outcome.StderrTail.
+type Tail struct {
+	b       []byte
+	dropped bool
+}
+
+func (t *Tail) Write(p []byte) (int, error) {
+	t.b = append(t.b, p...)
+	if len(t.b) > 2*StderrTailBytes {
+		t.b = append([]byte(nil), t.b[len(t.b)-StderrTailBytes:]...)
+		t.dropped = true
+	}
+	return len(p), nil
+}
+
+// String is the tail: its last whole lines, at most StderrTailBytes, valid
+// UTF-8, every one of masks (secret values) replaced by "***" before it is
+// cut, so no part of one survives.
+func (t *Tail) String(masks ...[]byte) string {
+	s := string(t.b)
+	for _, m := range masks {
+		if len(m) > 0 {
+			s = strings.ReplaceAll(s, string(m), "***")
+		}
+	}
+	cut := t.dropped
+	if len(s) > StderrTailBytes {
+		s, cut = s[len(s)-StderrTailBytes:], true
+	}
+	if cut {
+		if i := strings.IndexByte(s, '\n'); i >= 0 {
+			s = s[i+1:]
+		}
+	}
+	return strings.TrimSpace(strings.ToValidUTF8(s, ""))
 }

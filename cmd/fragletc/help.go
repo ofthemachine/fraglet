@@ -192,8 +192,9 @@ Flags:
         time, script, and memo key); unset, receipts are computed but not saved. A receipt is the
         invocation -- procedure hash (sha256 of the script file, shebang included), effective
         image and digest, params, inputs by content hash (stdin, :file params), argv, -e names --
-        and the outcome: exit code, stdout digest, outputs (every file under /output, or stdout
-        when none is declared). Its memo key -- the documented sha256 over procedure hash,
+        and the outcome: exit code, stdout and stderr digests, outputs (every file under /output,
+        or stdout when none is declared), and for a failed run stderr_tail: its last lines of
+        stderr (2 KiB at most, secret values masked), so the receipt alone says why it failed. Its memo key -- the documented sha256 over procedure hash,
         params and inputs -- is present only when nothing was bound outside the declared
         parameters (no argv, no -e, stdin not streamed), so it identifies the computation.
   -e string
@@ -207,6 +208,11 @@ Flags:
         Fraglet mode (sets FRAGLET_MODE=mode)
   --network string
         Container network mode (e.g. 'none', 'bridge', 'host'; defaults to 'none' when '#: network=none' is declared, otherwise Docker default bridge)
+  --retry int
+        Run again, up to this many times, while the fraglet exits 75 (see Temporary failures).
+  --timeout duration
+        End the run after this long (e.g. 90s, 2m), retries and their waits included. A run it
+        ends exits 124, and its receipt says so.
 
 Positional:
   script-file   Path to code file (required if -c not set)
@@ -224,6 +230,13 @@ Stdin:
     #: stdin=none       the program does not read stdin; nothing is attached.
   --stdin=<mode> overrides the header for one run; like -p and --output it is preprocessed, so
   it works in any position before "--".
+
+Temporary failures:
+  A fraglet that exits 75 (EX_TEMPFAIL) says its failure is temporary: a rate limit (HTTP 429),
+  a server down for a moment. With --retry N fragletc runs it again, up to N times, waiting 1s,
+  2s, 4s… (each jittered) in between. A retry is just another run: only the last run's stdout,
+  outputs and receipt count. Nothing else is retried, so a fraglet that is not safe to run
+  twice simply never exits 75. Without --retry, 75 is an exit code like any other.
 
 Subcommands:
   refresh       Refresh (pull) container images for veins
