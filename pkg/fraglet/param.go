@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 const transportPrefix = "FRAGLET_PARAM_"
@@ -278,15 +279,17 @@ func MissingRequired(decls []ParamDecl, params Params) []string {
 }
 
 // ApplyDefaults appends a raw Param for every decl with default= that is
-// not already present in params. Call before ResolveAliases: injected
+// not already present in params, a dynamic default (@hour, see
+// ResolveDefault) resolved against now. Call before ResolveAliases: injected
 // params use the uppercased alias as EnvVar, same shape ParseParam produces.
 //
 // An explicit -p alias= (including empty value) counts as provided and is
 // never overwritten. Omitted -p gets the declared default injected into
-// the transport env so the container sees it without in-script fallbacks.
-func ApplyDefaults(decls []ParamDecl, params Params) Params {
+// the transport env so the container sees it without in-script fallbacks,
+// and the receipt records it, so it is in the run's memo key.
+func ApplyDefaults(decls []ParamDecl, params Params, now time.Time) (Params, error) {
 	if len(decls) == 0 {
-		return params
+		return params, nil
 	}
 	provided := make(map[string]struct{}, len(params))
 	for _, p := range params {
@@ -304,12 +307,16 @@ func ApplyDefaults(decls []ParamDecl, params Params) Params {
 		if _, ok := provided[strings.ToLower(d.EnvVar)]; ok {
 			continue
 		}
+		val, err := ResolveDefault(def, now)
+		if err != nil {
+			return nil, fmt.Errorf("param %s: %w", d.Alias, err)
+		}
 		out = append(out, Param{
 			EnvVar:   strings.ToUpper(d.Alias),
 			Encoding: "raw",
-			Value:    def,
+			Value:    val,
 		})
 		provided[strings.ToLower(d.Alias)] = struct{}{}
 	}
-	return out
+	return out, nil
 }

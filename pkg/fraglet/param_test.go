@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestParseParam_Raw(t *testing.T) {
@@ -346,20 +347,40 @@ func TestApplyDefaults(t *testing.T) {
 		{Alias: "encoding", EnvVar: "ENCODING", Modifiers: map[string]string{"default": "cl100k_base"}},
 		{Alias: "text", EnvVar: "TEXT", Modifiers: map[string]string{"required": ""}},
 	}
-	got := ApplyDefaults(decls, nil)
-	if len(got) != 1 || got[0].EnvVar != "ENCODING" || got[0].Value != "cl100k_base" {
-		t.Fatalf("ApplyDefaults(nil) = %+v, want ENCODING=cl100k_base", got)
+	now := time.Date(2026, 6, 16, 14, 32, 5, 0, time.UTC)
+	got, err := ApplyDefaults(decls, nil, now)
+	if err != nil || len(got) != 1 || got[0].EnvVar != "ENCODING" || got[0].Value != "cl100k_base" {
+		t.Fatalf("ApplyDefaults(nil) = %+v, %v; want ENCODING=cl100k_base", got, err)
 	}
 
 	provided := Params{{EnvVar: "ENCODING", Encoding: "raw", Value: "o200k_base"}}
-	got = ApplyDefaults(decls, provided)
+	got, _ = ApplyDefaults(decls, provided, now)
 	if len(got) != 1 || got[0].Value != "o200k_base" {
 		t.Fatalf("explicit -p must win: %+v", got)
 	}
 
 	empty := Params{{EnvVar: "ENCODING", Encoding: "raw", Value: ""}}
-	got = ApplyDefaults(decls, empty)
+	got, _ = ApplyDefaults(decls, empty, now)
 	if len(got) != 1 || got[0].Value != "" {
 		t.Fatalf("explicit empty -p must not be overwritten: %+v", got)
+	}
+}
+
+// A dynamic default reaches the container as its value at the run's instant,
+// truncated to its window: the window is the memo bucket.
+func TestApplyDefaultsResolvesDynamicDefaults(t *testing.T) {
+	decls := []ParamDecl{{Alias: "call_time", EnvVar: "CALL_TIME", Modifiers: map[string]string{"default": "@hour"}}}
+	now := time.Date(2026, 6, 16, 14, 32, 5, 0, time.FixedZone("MDT", -6*3600))
+	got, err := ApplyDefaults(decls, nil, now)
+	if err != nil || len(got) != 1 || got[0].Value != "2026-06-16T20" {
+		t.Fatalf("got %+v, %v; want CALL_TIME=2026-06-16T20 (UTC)", got, err)
+	}
+	pinned := Params{{EnvVar: "CALL_TIME", Encoding: "raw", Value: "2020-06-01"}}
+	if got, _ := ApplyDefaults(decls, pinned, now); got[0].Value != "2020-06-01" {
+		t.Fatalf("a pinned call_time must win: %+v", got)
+	}
+	bad := []ParamDecl{{Alias: "call_time", EnvVar: "CALL_TIME", Modifiers: map[string]string{"default": "@fortnight"}}}
+	if _, err := ApplyDefaults(bad, nil, now); err == nil {
+		t.Fatal("an unknown @token must be refused")
 	}
 }
