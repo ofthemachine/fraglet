@@ -250,6 +250,11 @@ type RunOptions struct {
 	// cleaning up this directory is the caller's job (see cmd/fragletc's
 	// --output flag for the CLI-facing named-copy convention).
 	OutputHostDir string
+
+	// Now is the instant dynamic defaults (default=@hour) resolve against;
+	// zero means the clock. A caller running a chain passes one Now to every
+	// run, so its steps share one bucket.
+	Now time.Time
 }
 
 // Run orchestrates the execution of a fraglet
@@ -375,7 +380,14 @@ func prepare(opts RunOptions) (spec containerRunSpec, inv receipt.Invocation, an
 		}
 		params = append(params, p)
 	}
-	params = fraglet.ApplyDefaults(decls, params)
+	now := opts.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
+	params, err = fraglet.ApplyDefaults(decls, params, now)
+	if err != nil {
+		return spec, inv, false, fmt.Errorf("param error: %w", err)
+	}
 	var scalars, inputs map[string]string
 	if len(params) > 0 {
 		if len(decls) > 0 {
