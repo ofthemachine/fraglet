@@ -3,6 +3,7 @@ package fraglet
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -99,9 +100,9 @@ func Lint(code string) []Finding {
 				}
 			case strings.HasPrefix(field, "secret-output="):
 				v := strings.ToLower(strings.TrimSpace(field[len("secret-output="):]))
-				if v != SecretOutputFail && v != SecretOutputRedact && v != SecretOutputUncensored {
+				if !slices.Contains(SecretOutputModes, v) {
 					out = append(out, Finding{lineNo, "secret-output-value", Error,
-						fmt.Sprintf("secret-output=%q is not a mode fragletc understands; use secret-output=fail, secret-output=redact, or secret-output=uncensored", v)})
+						fmt.Sprintf("secret-output=%q is not a mode fragletc understands; use one of %s", v, strings.Join(SecretOutputModes, ", "))})
 				}
 			case strings.HasPrefix(field, "network="):
 				sawNetwork = true

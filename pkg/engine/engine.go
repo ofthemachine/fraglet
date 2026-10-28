@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -80,6 +79,9 @@ type ExecuteResult struct {
 	Stderr   string
 	ExitCode int
 	Duration time.Duration
+	// SecretOutput is what the run's secrets did in what it wrote (its
+	// script's secret-output= mode); nil when it was given none.
+	SecretOutput *receipt.SecretOutput
 }
 
 // Execute mounts the body of spec.Code (spec.Code's header — shebang plus
@@ -94,7 +96,7 @@ func Execute(ctx context.Context, spec ExecuteSpec) (ExecuteResult, error) {
 	if err != nil {
 		return ExecuteResult{}, err
 	}
-	return runContainer(ctx, containerRunSpec{
+	res, err := runContainer(ctx, containerRunSpec{
 		image:          spec.Image,
 		code:           spec.Code,
 		env:            append(slices.Clone(spec.Env), secretEnv...),
@@ -111,6 +113,10 @@ func Execute(ctx context.Context, spec ExecuteSpec) (ExecuteResult, error) {
 		fragletPath:    spec.FragletPath,
 		capture:        true,
 	})
+	if err == nil {
+		err = secretOutputErr(res.SecretOutput)
+	}
+	return res, err
 }
 
 // containerRunSpec is the internal, shared execution input for Execute (capture)
@@ -140,6 +146,10 @@ func runContainer(ctx context.Context, spec containerRunSpec) (ExecuteResult, er
 	}
 
 	_, body := fraglet.SplitHeader(spec.code)
+	mode, err := secretOutputMode(spec.code)
+	if err != nil {
+		return ExecuteResult{}, err
+	}
 
 	if spec.verbose {
 		fmt.Fprintf(os.Stderr, "fraglet: executing %s\n", spec.image)
@@ -159,7 +169,12 @@ func runContainer(ctx context.Context, spec containerRunSpec) (ExecuteResult, er
 		volumes = append(volumes, runner.VolumeMount{HostPath: spec.outputHostDir, ContainerPath: OutputMount, Writable: true})
 	}
 
+	// What the run writes passes its secrets' guard before anything sees
+	// it (the caller, a capture, a hash): its script answers for what it
+	// prints (#: secret-output=).
 	sink := newOutputSink(spec.capture, spec.stdout, spec.stderr)
+	stdout := newSecretGuard(sink.stdout, "stdout", spec.secrets, mode)
+	stderr := newSecretGuard(sink.stderr, "stderr", spec.secrets, mode)
 
 	r := runner.NewRunner(spec.image, "")
 	result, err := r.Run(ctx, runner.RunSpec{
@@ -168,18 +183,26 @@ func runContainer(ctx context.Context, spec containerRunSpec) (ExecuteResult, er
 		Args:        spec.args,
 		NetworkMode: spec.networkMode,
 		StdinReader: spec.stdin,
-		Stdout:      sink.stdout,
-		Stderr:      sink.stderr,
+		Stdout:      stdout,
+		Stderr:      stderr,
 		Volumes:     volumes,
 		Secrets:     spec.secrets,
 	})
+	if cerr := errors.Join(stdout.close(), stderr.close()); err == nil {
+		err = cerr
+	}
 	if err != nil {
 		return ExecuteResult{}, fmt.Errorf("execution failed: %w", err)
 	}
+	filed, err := guardOutputs(spec.outputHostDir, spec.secrets, mode)
+	if err != nil {
+		return ExecuteResult{}, fmt.Errorf("outputs: %w", err)
+	}
 
 	out := ExecuteResult{
-		ExitCode: result.ExitCode,
-		Duration: result.Duration,
+		ExitCode:     result.ExitCode,
+		Duration:     result.Duration,
+		SecretOutput: secretOutput(mode, spec.secrets, slices.Concat(stdout.seen, stderr.seen, filed)),
 	}
 	if spec.capture {
 		out.Stdout = bufferToString(sink.stdoutBuf, result.Stdout)
@@ -306,36 +329,28 @@ func runWithReport(ctx context.Context, opts RunOptions) (RunReport, error) {
 		return RunReport{Invocation: inv}, err
 	}
 
-	// What the run writes passes its secrets' guard (the script's
-	// secret-output= mode) before anything sees it: the caller, the hash,
-	// the tail. A receipt hashes the bytes as they leave.
-	mode := fraglet.ParseSecretOutput(spec.code)
-	secrets := namedSecrets(spec.secrets)
-	keep := mode == fraglet.SecretOutputUncensored
 	stdoutHash := receipt.NewHasher()
 	stdoutTo := []io.Writer{opts.Stdout, stdoutHash}
 	stderrHash, stderrTail := receipt.NewHasher(), &receipt.Tail{}
 	stderrTo := []io.Writer{opts.Stderr, stderrHash, stderrTail}
+	var streams []*os.File
 	if opts.StreamsDir != "" {
-		files, err := createStreams(opts.StreamsDir)
-		if err != nil {
+		if streams, err = createStreams(opts.StreamsDir); err != nil {
 			return RunReport{Invocation: inv}, fmt.Errorf("streams: %w", err)
 		}
-		defer files[0].Close()
-		defer files[1].Close()
-		stdoutTo, stderrTo = append(stdoutTo, files[0]), append(stderrTo, files[1])
+		stdoutTo, stderrTo = append(stdoutTo, streams[0]), append(stderrTo, streams[1])
 	}
-	stdoutGuard := receipt.NewGuard(io.MultiWriter(stdoutTo...), "stdout", secrets, keep)
-	spec.stdout = stdoutGuard
-	stderrGuard := receipt.NewGuard(io.MultiWriter(stderrTo...), "stderr", secrets, keep)
-	spec.stderr = stderrGuard
+	spec.stdout = io.MultiWriter(stdoutTo...)
+	spec.stderr = io.MultiWriter(stderrTo...)
 
 	var out receipt.Outcome
 	out.Started = time.Now().UTC()
 	result, err := runContainer(ctx, spec)
 	out.Finished = time.Now().UTC()
-	if cerr := errors.Join(stdoutGuard.Close(), stderrGuard.Close()); err == nil {
-		err = cerr
+	for _, f := range streams {
+		if cerr := f.Close(); err == nil && cerr != nil {
+			err = fmt.Errorf("streams: %w", cerr)
+		}
 	}
 	out.Stderr = stderrHash.Digest()
 	if err != nil || result.ExitCode != 0 {
@@ -350,18 +365,9 @@ func runWithReport(ctx context.Context, opts RunOptions) (RunReport, error) {
 	}
 	out.ExitCode = result.ExitCode
 	out.Stdout = stdoutHash.Digest()
-	seen := slices.Concat(stdoutGuard.Seen(), stderrGuard.Seen())
-	filed, err := guardOutputs(opts.OutputHostDir, secrets, keep)
-	if err != nil {
-		return RunReport{Invocation: inv, Outcome: out}, fmt.Errorf("outputs: %w", err)
-	}
-	seen = append(seen, filed...)
+	out.SecretOutput = result.SecretOutput
 	if out.Outputs, err = collectOutputs(opts.OutputHostDir, anonStdout, out.Stdout); err != nil {
 		return RunReport{Invocation: inv, Outcome: out}, fmt.Errorf("outputs: %w", err)
-	}
-	if len(secrets) > 0 {
-		receipt.SortSeen(seen)
-		out.SecretOutput = &receipt.SecretOutput{Mode: mode, Seen: seen}
 	}
 	// The image is local by now (the run pulled it if needed), so its
 	// registry digest is a cheap inspect away. ResolveImageDigest returns
@@ -369,14 +375,7 @@ func runWithReport(ctx context.Context, opts RunOptions) (RunReport, error) {
 	if ref, _ := vein.ResolveImageDigest(ctx, spec.image); strings.Contains(ref, "@sha256:") {
 		inv.ImageDigest = ref[strings.Index(ref, "@")+1:]
 	}
-	if mode == fraglet.SecretOutputFail && len(seen) > 0 {
-		where := make([]string, len(seen))
-		for i, s := range seen {
-			where[i] = s.Secret + " in " + s.In
-		}
-		return RunReport{Invocation: inv, Outcome: out}, fmt.Errorf("the script printed a secret it was given (%s, masked); stop printing it, or declare #: secret-output=redact (masked, the run succeeds) or secret-output=uncensored", strings.Join(where, ", "))
-	}
-	return RunReport{Invocation: inv, Outcome: out}, nil
+	return RunReport{Invocation: inv, Outcome: out}, secretOutputErr(out.SecretOutput)
 }
 
 // prepare resolves everything a run needs into the container spec and, from
@@ -547,62 +546,23 @@ func envNames(envFlags []string) []string {
 }
 
 // createStreams creates dir/stdout and dir/stderr, empty, for a run to
-// write: a retry's run replaces the last one's.
-func createStreams(dir string) ([2]*os.File, error) {
-	var files [2]*os.File
+// write (a retry's run replaces the last one's): the caller closes both.
+func createStreams(dir string) ([]*os.File, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return files, err
+		return nil, err
 	}
-	for i, name := range []string{"stdout", "stderr"} {
+	var files []*os.File
+	for _, name := range []string{"stdout", "stderr"} {
 		f, err := os.Create(filepath.Join(dir, name))
 		if err != nil {
-			if i > 0 {
-				files[0].Close()
+			for _, open := range files {
+				open.Close()
 			}
-			return files, err
+			return nil, err
 		}
-		files[i] = f
+		files = append(files, f)
 	}
 	return files, nil
-}
-
-// namedSecrets are a run's secrets by name (the file each is delivered as).
-func namedSecrets(secrets []runner.Secret) []receipt.Secret {
-	out := make([]receipt.Secret, 0, len(secrets))
-	for _, s := range secrets {
-		out = append(out, receipt.Secret{Name: path.Base(s.Path), Value: s.Value})
-	}
-	return out
-}
-
-// guardOutputs reads every file the run left under /output for the values
-// of its secrets, masking each in place unless keep, and says where each
-// appeared ("output:<relpath>"), before the files are hashed.
-func guardOutputs(outputHostDir string, secrets []receipt.Secret, keep bool) ([]receipt.SecretSeen, error) {
-	if outputHostDir == "" || len(secrets) == 0 {
-		return nil, nil
-	}
-	var seen []receipt.SecretSeen
-	err := filepath.WalkDir(outputHostDir, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		rel, err := filepath.Rel(outputHostDir, p)
-		if err != nil {
-			return err
-		}
-		data, err := os.ReadFile(p)
-		if err != nil {
-			return err
-		}
-		guarded, found := receipt.GuardBytes(data, "output:"+filepath.ToSlash(rel), secrets, keep)
-		seen = append(seen, found...)
-		if len(found) > 0 && !keep {
-			return os.WriteFile(p, guarded, d.Type().Perm()|0o600)
-		}
-		return nil
-	})
-	return seen, err
 }
 
 // collectOutputs hashes every file the run left under /output; when the
@@ -881,7 +841,7 @@ func resolveSecrets(decls []fraglet.SecretDecl, envFlags []string, lookup func(s
 			missing = append(missing, d.Name)
 			continue
 		}
-		secrets = append(secrets, runner.Secret{Path: d.ContainerPath(), Value: []byte(value)})
+		secrets = append(secrets, runner.Secret{Name: d.Name, Path: d.ContainerPath(), Value: []byte(value)})
 		env = append(env, d.FileEnv()+"="+d.ContainerPath())
 	}
 	if len(missing) > 0 {

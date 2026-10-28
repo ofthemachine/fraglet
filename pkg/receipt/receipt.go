@@ -157,6 +157,10 @@ type SecretOutput struct {
 	Seen []SecretSeen `json:"seen,omitempty"`
 }
 
+// Mask is what a masked secret value becomes: in StderrTail, and in what a
+// run wrote when its script's secret-output= mode masks.
+const Mask = "***"
+
 // SecretSeen is one secret's value appearing in one place: "stdout",
 // "stderr" or "output:<relpath>". The secret is named, never its value.
 type SecretSeen struct {
@@ -322,13 +326,13 @@ func (t *Tail) Write(p []byte) (int, error) {
 }
 
 // String is the tail: its last whole lines, at most StderrTailBytes, valid
-// UTF-8, every one of masks (secret values) replaced by "***" before it is
+// UTF-8, every one of masks (secret values) replaced by Mask before it is
 // cut, so no part of one survives.
 func (t *Tail) String(masks ...[]byte) string {
 	s := string(t.b)
 	for _, m := range masks {
 		if len(m) > 0 {
-			s = strings.ReplaceAll(s, string(m), "***")
+			s = strings.ReplaceAll(s, string(m), Mask)
 		}
 	}
 	cut := t.dropped

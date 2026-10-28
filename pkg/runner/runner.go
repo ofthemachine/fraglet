@@ -43,6 +43,7 @@ type VolumeMount struct {
 
 // Secret is a value delivered into a container as a read-only file at Path.
 type Secret struct {
+	Name  string // the declared name, e.g. HA_TOKEN
 	Path  string // absolute container path, e.g. /run/fraglet/secrets/HA_TOKEN
 	Value []byte
 }

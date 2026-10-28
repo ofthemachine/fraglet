@@ -348,9 +348,14 @@ const (
 	SecretOutputUncensored = "uncensored"
 )
 
+// SecretOutputModes are every secret-output= mode, in the order a message
+// lists them.
+var SecretOutputModes = []string{SecretOutputFail, SecretOutputRedact, SecretOutputUncensored}
+
 // ParseSecretOutput returns the declared secret output mode, or
 // SecretOutputFail when the header has no secret-output= line. The last
-// non-empty declaration wins, like ParseNetwork.
+// non-empty declaration wins, like ParseNetwork. It is returned as written
+// (lowercased): a caller refuses one not in SecretOutputModes.
 func ParseSecretOutput(code string) string {
 	if v := lastDirectiveValue(code, "secret-output="); v != "" {
 		return v
