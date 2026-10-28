@@ -253,6 +253,12 @@ type RunOptions struct {
 	// --output flag for the CLI-facing named-copy convention).
 	OutputHostDir string
 
+	// StreamsDir, when non-empty, receives the run's stdout and stderr as
+	// the files "stdout" and "stderr": exactly the bytes the report hashes
+	// (after the secret-output mode), the caller's own messages never among
+	// them, so whoever publishes a receipt can publish what it names.
+	StreamsDir string
+
 	// Now is the instant dynamic defaults (default=@hour) resolve against;
 	// zero means the clock. A caller running a chain passes one Now to every
 	// run, so its steps share one bucket.
@@ -307,10 +313,21 @@ func runWithReport(ctx context.Context, opts RunOptions) (RunReport, error) {
 	secrets := namedSecrets(spec.secrets)
 	keep := mode == fraglet.SecretOutputUncensored
 	stdoutHash := receipt.NewHasher()
-	stdoutGuard := receipt.NewGuard(io.MultiWriter(opts.Stdout, stdoutHash), "stdout", secrets, keep)
-	spec.stdout = stdoutGuard
+	stdoutTo := []io.Writer{opts.Stdout, stdoutHash}
 	stderrHash, stderrTail := receipt.NewHasher(), &receipt.Tail{}
-	stderrGuard := receipt.NewGuard(io.MultiWriter(opts.Stderr, stderrHash, stderrTail), "stderr", secrets, keep)
+	stderrTo := []io.Writer{opts.Stderr, stderrHash, stderrTail}
+	if opts.StreamsDir != "" {
+		files, err := createStreams(opts.StreamsDir)
+		if err != nil {
+			return RunReport{Invocation: inv}, fmt.Errorf("streams: %w", err)
+		}
+		defer files[0].Close()
+		defer files[1].Close()
+		stdoutTo, stderrTo = append(stdoutTo, files[0]), append(stderrTo, files[1])
+	}
+	stdoutGuard := receipt.NewGuard(io.MultiWriter(stdoutTo...), "stdout", secrets, keep)
+	spec.stdout = stdoutGuard
+	stderrGuard := receipt.NewGuard(io.MultiWriter(stderrTo...), "stderr", secrets, keep)
 	spec.stderr = stderrGuard
 
 	var out receipt.Outcome
@@ -527,6 +544,26 @@ func envNames(envFlags []string) []string {
 		}
 	}
 	return names
+}
+
+// createStreams creates dir/stdout and dir/stderr, empty, for a run to
+// write: a retry's run replaces the last one's.
+func createStreams(dir string) ([2]*os.File, error) {
+	var files [2]*os.File
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return files, err
+	}
+	for i, name := range []string{"stdout", "stderr"} {
+		f, err := os.Create(filepath.Join(dir, name))
+		if err != nil {
+			if i > 0 {
+				files[0].Close()
+			}
+			return files, err
+		}
+		files[i] = f
+	}
+	return files, nil
 }
 
 // namedSecrets are a run's secrets by name (the file each is delivered as).

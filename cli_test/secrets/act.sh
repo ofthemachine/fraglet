@@ -41,7 +41,8 @@ echo ""
 echo "=== Test 5: a secret in what the run writes: fail (the default), redact, uncensored ==="
 # The script answers for what it prints: its header says what fragletc does
 # when a secret's value appears in stdout, stderr or an output file, and the
-# receipt says where it appeared, by name, in every mode.
+# receipt says where it appeared, by name, in every mode. --streams saves
+# stdout and stderr exactly as the receipt hashes them.
 export FT_TOKEN='leak-sentinel-0123'
 LEAK='#: secret=FT_TOKEN:d=Test credential
 #: output=out.txt
@@ -56,7 +57,8 @@ for mode in "" redact uncensored; do
 $LEAK"
   rm -rf o && mkdir o
   echo "--- mode ${mode:-undeclared}"
-  fragletc --vein python --output-dir o --receipt r.json -c "$code" >so.txt 2>err.txt </dev/null && echo "exit=0" || echo "exit=$?"
+  rm -rf st
+  fragletc --vein python --output-dir o --streams st --receipt r.json -c "$code" >so.txt 2>err.txt </dev/null && echo "exit=0" || echo "exit=$?"
   sed 's/^/stdout: /' so.txt
   sed 's/^/stderr: /' err.txt | grep -v '^stderr: $'
   if [ -f o/out.txt ]; then sed 's/^/file: /' o/out.txt; echo; else echo "file: none (a failed run delivers no outputs)"; fi
@@ -67,5 +69,5 @@ so = r.get("secret_output", {})
 print("receipt: exit", r["exit_code"], "mode", so.get("mode"), "seen", [s["secret"] + " in " + s["in"] for s in so.get("seen", [])])
 import hashlib, os
 h = lambda p: "sha256:" + hashlib.sha256(open(p, "rb").read()).hexdigest()
-print("receipt hashes what was delivered: stdout", r["stdout"]["hash"] == h("so.txt"), "file", (r["outputs"].get("out.txt") == h("o/out.txt")) if os.path.exists("o/out.txt") else "-")'
+print("receipt hashes what was delivered: stdout", r["stdout"]["hash"] == h("so.txt") == h("st/stdout"), "stderr", r["stderr"]["hash"] == h("st/stderr"), "file", (r["outputs"].get("out.txt") == h("o/out.txt")) if os.path.exists("o/out.txt") else "-")'
 done
