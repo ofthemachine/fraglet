@@ -186,6 +186,10 @@ Flags:
         output filename isn't known ahead of time (an explicit -o flag it's passed, or its own
         default naming). No declaration needed; same-named files are overwritten, same as a
         locally installed tool would. Mutually exclusive with --output.
+  --streams dir
+        Write the run's stdout and stderr to dir/stdout and dir/stderr: exactly the bytes its
+        receipt hashes (after #: secret-output=), fragletc's own messages never among them, so
+        whoever publishes a receipt can publish what it names. With --retry, the last run's.
   --receipt path (preprocessed, not a flag)
         Any position before "--", like -p and --output. Write a JSON receipt of the run to path.
         Without it, FRAGLETC_RECEIPT_DIR=<dir> saves every run's receipt there (named by start
