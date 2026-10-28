@@ -97,6 +97,12 @@ func Lint(code string) []Finding {
 					out = append(out, Finding{lineNo, "stdin-value", Error,
 						fmt.Sprintf("stdin=%q is not a mode fragletc understands; use stdin=none, stdin=buffer, or stdin=stream", v)})
 				}
+			case strings.HasPrefix(field, "secret-output="):
+				v := strings.ToLower(strings.TrimSpace(field[len("secret-output="):]))
+				if v != SecretOutputFail && v != SecretOutputRedact && v != SecretOutputUncensored {
+					out = append(out, Finding{lineNo, "secret-output-value", Error,
+						fmt.Sprintf("secret-output=%q is not a mode fragletc understands; use secret-output=fail, secret-output=redact, or secret-output=uncensored", v)})
+				}
 			case strings.HasPrefix(field, "network="):
 				sawNetwork = true
 				v := strings.ToLower(strings.TrimSpace(field[len("network="):]))

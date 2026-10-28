@@ -3,10 +3,12 @@ package engine
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -298,15 +300,26 @@ func runWithReport(ctx context.Context, opts RunOptions) (RunReport, error) {
 		return RunReport{Invocation: inv}, err
 	}
 
+	// What the run writes passes its secrets' guard (the script's
+	// secret-output= mode) before anything sees it: the caller, the hash,
+	// the tail. A receipt hashes the bytes as they leave.
+	mode := fraglet.ParseSecretOutput(spec.code)
+	secrets := namedSecrets(spec.secrets)
+	keep := mode == fraglet.SecretOutputUncensored
 	stdoutHash := receipt.NewHasher()
-	spec.stdout = io.MultiWriter(opts.Stdout, stdoutHash)
+	stdoutGuard := receipt.NewGuard(io.MultiWriter(opts.Stdout, stdoutHash), "stdout", secrets, keep)
+	spec.stdout = stdoutGuard
 	stderrHash, stderrTail := receipt.NewHasher(), &receipt.Tail{}
-	spec.stderr = io.MultiWriter(opts.Stderr, stderrHash, stderrTail)
+	stderrGuard := receipt.NewGuard(io.MultiWriter(opts.Stderr, stderrHash, stderrTail), "stderr", secrets, keep)
+	spec.stderr = stderrGuard
 
 	var out receipt.Outcome
 	out.Started = time.Now().UTC()
 	result, err := runContainer(ctx, spec)
 	out.Finished = time.Now().UTC()
+	if cerr := errors.Join(stdoutGuard.Close(), stderrGuard.Close()); err == nil {
+		err = cerr
+	}
 	out.Stderr = stderrHash.Digest()
 	if err != nil || result.ExitCode != 0 {
 		masks := make([][]byte, 0, len(spec.secrets))
@@ -320,14 +333,31 @@ func runWithReport(ctx context.Context, opts RunOptions) (RunReport, error) {
 	}
 	out.ExitCode = result.ExitCode
 	out.Stdout = stdoutHash.Digest()
+	seen := slices.Concat(stdoutGuard.Seen(), stderrGuard.Seen())
+	filed, err := guardOutputs(opts.OutputHostDir, secrets, keep)
+	if err != nil {
+		return RunReport{Invocation: inv, Outcome: out}, fmt.Errorf("outputs: %w", err)
+	}
+	seen = append(seen, filed...)
 	if out.Outputs, err = collectOutputs(opts.OutputHostDir, anonStdout, out.Stdout); err != nil {
 		return RunReport{Invocation: inv, Outcome: out}, fmt.Errorf("outputs: %w", err)
+	}
+	if len(secrets) > 0 {
+		receipt.SortSeen(seen)
+		out.SecretOutput = &receipt.SecretOutput{Mode: mode, Seen: seen}
 	}
 	// The image is local by now (the run pulled it if needed), so its
 	// registry digest is a cheap inspect away. ResolveImageDigest returns
 	// the ref unchanged when it cannot; only a real @sha256 counts.
 	if ref, _ := vein.ResolveImageDigest(ctx, spec.image); strings.Contains(ref, "@sha256:") {
 		inv.ImageDigest = ref[strings.Index(ref, "@")+1:]
+	}
+	if mode == fraglet.SecretOutputFail && len(seen) > 0 {
+		where := make([]string, len(seen))
+		for i, s := range seen {
+			where[i] = s.Secret + " in " + s.In
+		}
+		return RunReport{Invocation: inv, Outcome: out}, fmt.Errorf("the script printed a secret it was given (%s, masked); stop printing it, or declare #: secret-output=redact (masked, the run succeeds) or secret-output=uncensored", strings.Join(where, ", "))
 	}
 	return RunReport{Invocation: inv, Outcome: out}, nil
 }
@@ -497,6 +527,45 @@ func envNames(envFlags []string) []string {
 		}
 	}
 	return names
+}
+
+// namedSecrets are a run's secrets by name (the file each is delivered as).
+func namedSecrets(secrets []runner.Secret) []receipt.Secret {
+	out := make([]receipt.Secret, 0, len(secrets))
+	for _, s := range secrets {
+		out = append(out, receipt.Secret{Name: path.Base(s.Path), Value: s.Value})
+	}
+	return out
+}
+
+// guardOutputs reads every file the run left under /output for the values
+// of its secrets, masking each in place unless keep, and says where each
+// appeared ("output:<relpath>"), before the files are hashed.
+func guardOutputs(outputHostDir string, secrets []receipt.Secret, keep bool) ([]receipt.SecretSeen, error) {
+	if outputHostDir == "" || len(secrets) == 0 {
+		return nil, nil
+	}
+	var seen []receipt.SecretSeen
+	err := filepath.WalkDir(outputHostDir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(outputHostDir, p)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		guarded, found := receipt.GuardBytes(data, "output:"+filepath.ToSlash(rel), secrets, keep)
+		seen = append(seen, found...)
+		if len(found) > 0 && !keep {
+			return os.WriteFile(p, guarded, d.Type().Perm()|0o600)
+		}
+		return nil
+	})
+	return seen, err
 }
 
 // collectOutputs hashes every file the run left under /output; when the

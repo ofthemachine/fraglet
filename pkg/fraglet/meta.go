@@ -330,6 +330,34 @@ const (
 // declaration wins, like ParseNetwork.
 func ParseStdin(code string) string { return lastDirectiveValue(code, "stdin=") }
 
+// Secret output modes a header may declare with "#: secret-output=": what
+// a run does when the value of a secret it was given appears in what it
+// writes (stdout, stderr, a file under /output). The script answers for
+// what it prints, so its header says, and the receipt records the mode and
+// every place a value appeared, whatever the mode:
+//
+//   - SecretOutputFail (the default when undeclared) masks the value and
+//     fails the run.
+//   - SecretOutputRedact masks the value and lets the run succeed.
+//   - SecretOutputUncensored keeps the bytes as written.
+//
+// A masked value is "***", as in the receipt's stderr_tail.
+const (
+	SecretOutputFail       = "fail"
+	SecretOutputRedact     = "redact"
+	SecretOutputUncensored = "uncensored"
+)
+
+// ParseSecretOutput returns the declared secret output mode, or
+// SecretOutputFail when the header has no secret-output= line. The last
+// non-empty declaration wins, like ParseNetwork.
+func ParseSecretOutput(code string) string {
+	if v := lastDirectiveValue(code, "secret-output="); v != "" {
+		return v
+	}
+	return SecretOutputFail
+}
+
 // ParseMetaWhen returns the tool-level trigger clause: the situations in which
 // an agent should reach for this tool, from "#: when=" lines. d= says what the
 // tool does; when= says when to use it. Catalogs that publish a tool as an

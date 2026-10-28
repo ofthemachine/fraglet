@@ -394,3 +394,19 @@ func TestParseStdin(t *testing.T) {
 		t.Fatal("expected empty mode when undeclared")
 	}
 }
+
+// Undeclared, a run fails when a secret appears in what it writes.
+func TestParseSecretOutput(t *testing.T) {
+	for code, want := range map[string]string{
+		"#: d=T\n":                          SecretOutputFail,
+		"#: d=T\n#: secret-output=Redact\n": SecretOutputRedact,
+		"#: secret-output=uncensored\n":     SecretOutputUncensored,
+	} {
+		if got := ParseSecretOutput(code); got != want {
+			t.Errorf("ParseSecretOutput(%q) = %q, want %q", code, got, want)
+		}
+	}
+	if decls := ParseSecretDecls("#: secret-output=redact\n"); len(decls) != 0 {
+		t.Errorf("secret-output= read as a secret declaration: %v", decls)
+	}
+}

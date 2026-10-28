@@ -194,7 +194,12 @@ Flags:
         image and digest, params, inputs by content hash (stdin, :file params), argv, -e names --
         and the outcome: exit code, stdout and stderr digests, outputs (every file under /output,
         or stdout when none is declared), and for a failed run stderr_tail: its last lines of
-        stderr (2 KiB at most, secret values masked), so the receipt alone says why it failed. Its memo key -- the documented sha256 over procedure hash,
+        stderr (2 KiB at most, secret values masked), so the receipt alone says why it failed;
+        and for a run given secrets, secret_output: its mode and every place (stdout, stderr,
+        output:<path>) a secret's value appeared, by name. The script's #: secret-output= says
+        what such a run does: fail (the default: masked as "***", the run fails), redact (masked,
+        the run succeeds) or uncensored (kept as written); the digests are of what was delivered,
+        after the mode applied. Its memo key -- the documented sha256 over procedure hash,
         params and inputs -- is present only when nothing was bound outside the declared
         parameters (no argv, no -e, stdin not streamed), so it identifies the computation.
   -e string

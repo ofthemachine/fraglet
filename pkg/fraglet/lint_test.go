@@ -281,3 +281,13 @@ func TestLint_Shebang(t *testing.T) {
 		}
 	}
 }
+
+func TestLint_SecretOutputValue(t *testing.T) {
+	fs := Lint(withHeader("#: network=none\n#: secret-output=hide\n", "print(1)\n"))
+	if f := findRule(t, fs, "secret-output-value"); f.Severity != Error || f.Line != 5 {
+		t.Fatalf("finding = %+v", f)
+	}
+	for _, mode := range []string{"fail", "redact", "uncensored"} {
+		assertNoRule(t, Lint(withHeader("#: network=none\n#: secret-output="+mode+"\n", "print(1)\n")), "secret-output-value")
+	}
+}
