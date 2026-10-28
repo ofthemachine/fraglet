@@ -39,6 +39,7 @@ Errors are declarations fragletc misreads or silently drops:
   param-duplicate              same alias declared twice
   network-value                network= must be none or required
   stdin-value                  stdin= must be none, buffer, or stream
+  secret-output-value          secret-output= must be fail, redact, or uncensored
   output-relpath               output= relative to /output, no .., no duplicates
   secret-name                  secret=NAME[:d=...] on its own line; NAME is [A-Z][A-Z0-9_]*, not FRAGLET_*
   secret-duplicate             same secret declared twice

@@ -58,6 +58,7 @@ func main() {
 	network := flag.String("network", "", "Container network mode (e.g. 'none', 'bridge', 'host'; defaults to 'none' when '#: network=none' is declared, otherwise Docker default bridge)")
 	inlineCode := flag.String("c", "", "Program passed in as string (like python -c)")
 	outputDir := flag.String("output-dir", "", "Copy everything the fraglet writes to /output into this host directory after the run — for a fraglet whose output filename isn't known ahead of time (e.g. wrapping a real CLI tool's own -o/default naming). No declared-output= needed: whatever lands in /output is copied out, overwriting same-named files, same as a locally installed tool would. Mutually exclusive with --output.")
+	streams := flag.String("streams", "", "Write the run's stdout and stderr to this directory as the files stdout and stderr: exactly the bytes its receipt hashes (after #: secret-output=), fragletc's own messages never among them; with --retry, the last run's")
 	retries := flag.Int("retry", 0, "Run again, up to this many times, while the fraglet exits 75 (temporary failure: a rate limit, a server down for a moment), waiting 1s, 2s, 4s… (jittered) between runs; only the last run's stdout and receipt count")
 	timeout := flag.Duration("timeout", 0, "End the run (retries and waits included) after this long, e.g. 90s or 2m; a run it ends exits 124 and its receipt says so")
 	var envFlags envListFlag
@@ -171,6 +172,7 @@ func main() {
 		NetworkMode:   *network,
 		OutputHostDir: outputHostDir,
 		StdinMode:     pre.stdin,
+		StreamsDir:    *streams,
 	}
 
 	ctx := context.Background()

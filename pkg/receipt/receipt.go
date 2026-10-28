@@ -142,6 +142,30 @@ type Outcome struct {
 	// Outputs: <relpath> -> hash for every file written under /output, or
 	// AnonKey -> stdout hash when the script declares no output=.
 	Outputs map[string]string `json:"outputs"`
+	// SecretOutput is what the run's secrets did in what it wrote. Absent
+	// when the run was given none.
+	SecretOutput *SecretOutput `json:"secret_output,omitempty"`
+}
+
+// SecretOutput is the secret output mode a run's script declared
+// (fraglet.ParseSecretOutput) and every place the value of a secret it was
+// given appeared in what it wrote, whatever the mode: Stdout, Stderr and
+// Outputs are the bytes after the mode applied, so a reader learns from
+// here alone whether they were masked.
+type SecretOutput struct {
+	Mode string       `json:"mode"`
+	Seen []SecretSeen `json:"seen,omitempty"`
+}
+
+// Mask is what a masked secret value becomes: in StderrTail, and in what a
+// run wrote when its script's secret-output= mode masks.
+const Mask = "***"
+
+// SecretSeen is one secret's value appearing in one place: "stdout",
+// "stderr" or "output:<relpath>". The secret is named, never its value.
+type SecretSeen struct {
+	Secret string `json:"secret"`
+	In     string `json:"in"`
 }
 
 // Receipt is the JSON document --receipt writes: Invocation and Outcome,
@@ -302,13 +326,13 @@ func (t *Tail) Write(p []byte) (int, error) {
 }
 
 // String is the tail: its last whole lines, at most StderrTailBytes, valid
-// UTF-8, every one of masks (secret values) replaced by "***" before it is
+// UTF-8, every one of masks (secret values) replaced by Mask before it is
 // cut, so no part of one survives.
 func (t *Tail) String(masks ...[]byte) string {
 	s := string(t.b)
 	for _, m := range masks {
 		if len(m) > 0 {
-			s = strings.ReplaceAll(s, string(m), "***")
+			s = strings.ReplaceAll(s, string(m), Mask)
 		}
 	}
 	cut := t.dropped
