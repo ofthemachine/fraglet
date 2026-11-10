@@ -425,3 +425,38 @@ func TestRunWithReport_DeclaredParamsKeyTheRun(t *testing.T) {
 		t.Fatal("a script with declared outputs has no anonymous stdout result")
 	}
 }
+
+// A script that says how it runs (#: run=) runs in an image with no fraglet
+// entrypoint: its body where the line names it, its params under their bare
+// names, the caller's args after the command's own.
+func TestExecute_RunLine(t *testing.T) {
+	requireDocker(t)
+
+	code := "#!/usr/bin/env -S fragletc --image alpine:latest\n" +
+		"#: run=sh {code:/work/hello.sh}\n" +
+		"#: param=name\n" +
+		"echo \"hello $NAME from $0 with $1\"\n"
+
+	result, err := Execute(context.Background(), ExecuteSpec{
+		Image: "alpine:latest",
+		Code:  code,
+		Env:   []string{"FRAGLET_PARAM_NAME=ottoline"},
+		Args:  []string{"an-arg"},
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if want := "hello ottoline from /work/hello.sh with an-arg\n"; result.Stdout != want || result.ExitCode != 0 {
+		t.Fatalf("stdout = %q (exit %d, stderr %q); want %q", result.Stdout, result.ExitCode, result.Stderr, want)
+	}
+}
+
+func TestExecute_RunLineRefusedWhenMalformed(t *testing.T) {
+	_, err := Execute(context.Background(), ExecuteSpec{
+		Image: "alpine:latest",
+		Code:  "#!/usr/bin/env -S fragletc --image alpine:latest\n#: run=sh -s\necho hi\n",
+	})
+	if err == nil || !strings.Contains(err.Error(), "run=") {
+		t.Fatalf("err = %v; want the run line refused", err)
+	}
+}

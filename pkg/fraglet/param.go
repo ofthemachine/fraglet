@@ -320,3 +320,26 @@ func ApplyDefaults(decls []ParamDecl, params Params, now time.Time) (Params, err
 	}
 	return out, nil
 }
+
+// BareEnv is env as a script reads it where no fraglet entrypoint runs (a
+// #: run= script): each FRAGLET_PARAM_<NAME> also set as <NAME>, as the
+// entrypoint does, unless env already sets that name.
+func BareEnv(env []string) []string {
+	have := make(map[string]bool, len(env))
+	for _, e := range env {
+		if name, _, ok := strings.Cut(e, "="); ok {
+			have[name] = true
+		}
+	}
+	out := append([]string(nil), env...)
+	for _, e := range env {
+		name, value, ok := strings.Cut(e, "=")
+		bare, isParam := strings.CutPrefix(name, transportPrefix)
+		if !ok || !isParam || bare == "" || have[bare] {
+			continue
+		}
+		out = append(out, bare+"="+value)
+		have[bare] = true
+	}
+	return out
+}

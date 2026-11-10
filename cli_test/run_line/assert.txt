@@ -1,0 +1,12 @@
+=== Test 1: the body runs where the line names it ===
+hello ottoline from /work/hello.sh
+
+=== Test 2: a declared default arrives too ===
+hello nobody from /work/hello.sh
+
+=== Test 3: a run line with nowhere for the body is refused ===
+run=: the command names where the body is written ({code:<path>})
+exit: 1
+
+=== Test 4: lint says so ===
+{{any}}run-value{{any}}

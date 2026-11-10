@@ -156,6 +156,24 @@ func runContainer(ctx context.Context, spec containerRunSpec) (ExecuteResult, er
 		fmt.Fprintf(os.Stderr, "fraglet: env: %v\n", redactEnv(spec.env, spec.secretEnvNames))
 	}
 
+	// A script that says how it runs (#: run=) runs that command in place of
+	// the image's entrypoint, its body where the command names it. Nothing in
+	// such an image turns transport env into the names a script reads, so
+	// that is done here.
+	recipe, err := fraglet.ParseRun(spec.code)
+	if err != nil {
+		return ExecuteResult{}, err
+	}
+	entrypoint, args, env := "", spec.args, spec.env
+	if recipe != nil {
+		if !runner.DockerAvailable() {
+			return ExecuteResult{}, errors.New("a script with #: run= names its own program, so it runs only in a container: Docker is not available")
+		}
+		fragletPath, entrypoint = recipe.CodePath, recipe.Argv[0]
+		args = slices.Concat(recipe.Argv[1:], spec.args)
+		env = fraglet.BareEnv(spec.env)
+	}
+
 	tmpFile, cleanup, err := writeTempFile(body)
 	if err != nil {
 		return ExecuteResult{}, fmt.Errorf("error creating temp file: %w", err)
@@ -179,8 +197,9 @@ func runContainer(ctx context.Context, spec containerRunSpec) (ExecuteResult, er
 	r := runner.NewRunner(spec.image, "")
 	result, err := r.Run(ctx, runner.RunSpec{
 		Container:   spec.image,
-		Env:         spec.env,
-		Args:        spec.args,
+		Entrypoint:  entrypoint,
+		Env:         env,
+		Args:        args,
 		NetworkMode: spec.networkMode,
 		StdinReader: spec.stdin,
 		Stdout:      stdout,
