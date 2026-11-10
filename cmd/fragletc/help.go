@@ -240,6 +240,15 @@ Stdin:
   --stdin=<mode> overrides the header for one run; like -p and --output it is preprocessed, so
   it works in any position before "--".
 
+Images without a fraglet entrypoint:
+  A script may say how its body runs, so any image works, pinned by digest like any other:
+    #!/usr/bin/env -S fragletc --image python:3.12-slim@sha256:<digest>
+    #: run=python3 {code:/work/main.py}
+  The body is written to the path {code:<path>} names (always given: fragletc chooses none) and
+  the command replaces the image's entrypoint. Words split on white space, with no quoting: a
+  command that needs a shell names one (run=sh {code:/work/run.sh}). Params, secrets, outputs
+  and stdin work as in any fraglet. Such a script needs Docker: it never runs on the host.
+
 Temporary failures:
   A fraglet that exits 75 (EX_TEMPFAIL) says its failure is temporary: a rate limit (HTTP 429),
   a server down for a moment. With --retry N fragletc runs it again, up to N times, waiting 1s,

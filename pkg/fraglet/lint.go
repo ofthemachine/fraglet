@@ -71,12 +71,21 @@ func Lint(code string) []Finding {
 	for _, d := range ParseParamDecls(code) {
 		paramEnv[d.EnvVar] = d.Alias
 	}
-	sawNetwork := false
+	sawNetwork, sawRun := false, false
 
 	for i, line := range lines {
 		lineNo := i + 1
 		if tok, ok := secretToken(line); ok {
 			out = append(out, lintSecretToken(tok, lineNo, seenSecrets, paramEnv, body)...)
+			continue
+		}
+		if _, ok := runLine(line); ok {
+			if sawRun {
+				out = append(out, Finding{lineNo, "run-value", Error, "a second #: run= line: a script says how it runs once"})
+			} else if _, err := ParseRun(line + "\n"); err != nil {
+				out = append(out, Finding{lineNo, "run-value", Error, err.Error()})
+			}
+			sawRun = true
 			continue
 		}
 		rest, ok := directiveLine(line)

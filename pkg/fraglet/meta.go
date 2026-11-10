@@ -45,7 +45,19 @@ func SplitHeader(code string) (header, body string) {
 // whether one was found. The short sentinel must be the line's first
 // non-whitespace characters; the legacy verbose sentinel matches anywhere in
 // the line (its historical behavior).
+//
+// A run line ("#: run=", run.go) is not returned: everything on it is its
+// command, so none of its words is another directive.
 func directiveLine(line string) (string, bool) {
+	rest, ok := rawDirective(line)
+	if ok && strings.HasPrefix(strings.TrimSpace(rest), runKey) {
+		return "", false
+	}
+	return rest, ok
+}
+
+// rawDirective is directiveLine for every directive line, run lines included.
+func rawDirective(line string) (string, bool) {
 	trimmed := strings.TrimSpace(line)
 	if strings.HasPrefix(trimmed, shortSentinel) {
 		return trimmed[len(shortSentinel):], true

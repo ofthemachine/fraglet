@@ -75,6 +75,11 @@ type RunResult struct {
 	Duration time.Duration
 }
 
+// DockerAvailable reports whether runs happen in containers here. Without
+// Docker NewRunner falls back to running on the host, which a caller about
+// to name a program of its own (an entrypoint) must not do.
+func DockerAvailable() bool { return (&dockerRunner{}).Available() }
+
 // NewRunner creates an appropriate runner based on the spec
 // If container is specified, returns a docker runner (if available) or local
 // If no container, returns local runner
