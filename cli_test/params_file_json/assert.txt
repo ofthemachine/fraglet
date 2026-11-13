@@ -1,0 +1,9 @@
+=== Test 1: every param from the file ===
+hello ottoline x3: a note from a file
+
+=== Test 2: -p wins over the file ===
+hello gladys x3: a note from a file
+
+=== Test 3: a file that is not an object is refused ===
+--params bad.json: a JSON object of name to value{{any}}
+exit: {{number}}

@@ -1,8 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"os"
+	"slices"
 	"strings"
 
 	"github.com/ofthemachine/fraglet/pkg/fraglet"
@@ -25,9 +29,12 @@ type preprocessed struct {
 	filtered []string // argv with the lifted arguments removed
 	wantHelp bool
 	params   []string
-	outputs  []string
-	receipt  string
-	stdin    string // --stdin=<mode>
+	// paramsFile is --params: a JSON file of name to value, read into
+	// params after the loop (a value on the command line wins).
+	paramsFile string
+	outputs    []string
+	receipt    string
+	stdin      string // --stdin=<mode>
 }
 
 func (p *argParser) peek() (string, bool) {
@@ -100,6 +107,16 @@ func preprocessFragletArgv(args []string) (preprocessed, error) {
 			// -pKEY=value
 			p.params = append(p.params, arg[2:])
 
+		case strings.HasPrefix(arg, "--params="):
+			p.paramsFile = arg[len("--params="):]
+
+		case arg == "--params":
+			val, ok := p.consume()
+			if !ok {
+				return preprocessed{}, errors.New("--params requires a file")
+			}
+			p.paramsFile = val
+
 		case strings.HasPrefix(arg, "--output="):
 			p.outputs = append(p.outputs, arg[len("--output="):])
 
@@ -139,5 +156,49 @@ func preprocessFragletArgv(args []string) (preprocessed, error) {
 		}
 	}
 
+	if p.paramsFile != "" {
+		params, err := paramsFromFile(p.paramsFile, p.params)
+		if err != nil {
+			return preprocessed{}, err
+		}
+		p.params = params
+	}
 	return p.preprocessed, nil
+}
+
+// paramsFromFile is given with the params of path, a JSON object of name to
+// value (a string, number or boolean; a file param's value is a path), put
+// before them: a name given on the command line is taken from there, so a
+// run's recorded params rerun as they were, and one can still be changed.
+func paramsFromFile(path string, given []string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("--params: %w", err)
+	}
+	var values map[string]any
+	if err := json.Unmarshal(data, &values); err != nil {
+		return nil, fmt.Errorf("--params %s: a JSON object of name to value: %w", path, err)
+	}
+	set := map[string]bool{}
+	for _, p := range given {
+		name, _, _ := strings.Cut(p, "=")
+		set[name] = true
+	}
+	var out []string
+	for _, name := range slices.Sorted(maps.Keys(values)) {
+		if set[name] {
+			continue
+		}
+		var v string
+		switch x := values[name].(type) {
+		case string:
+			v = x
+		case float64, bool:
+			v = fmt.Sprint(x)
+		default:
+			return nil, fmt.Errorf("--params %s: %s is not a string, number or boolean", path, name)
+		}
+		out = append(out, name+"="+v)
+	}
+	return append(out, given...), nil
 }
