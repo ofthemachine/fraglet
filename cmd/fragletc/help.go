@@ -190,6 +190,11 @@ Flags:
         Write the run's stdout and stderr to dir/stdout and dir/stderr: exactly the bytes its
         receipt hashes (after #: secret-output=), fragletc's own messages never among them, so
         whoever publishes a receipt can publish what it names. With --retry, the last run's.
+  --params file (preprocessed, not a flag)
+        Any position before "--". A JSON object of name to value (a string, number or
+        boolean; a :file param's value is a path), as if each were -p name=value; a name also
+        given with -p is taken from -p. A run's recorded params in one file, so the script
+        stays the one that ran: fragletc --params tally.params.json tally.py
   --receipt path (preprocessed, not a flag)
         Any position before "--", like -p and --output. Write a JSON receipt of the run to path.
         Without it, FRAGLETC_RECEIPT_DIR=<dir> saves every run's receipt there (named by start

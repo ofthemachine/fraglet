@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -190,5 +191,35 @@ func TestReceiptDestination(t *testing.T) {
 	report.Argv = []string{"x"}
 	if got := receiptDestination("", "/tmp/dir", "", report); got != filepath.Join("/tmp/dir", "20260914T060659Z-inline-unkeyed.json") {
 		t.Fatalf("unkeyed name = %q", got)
+	}
+}
+
+// --params reads a run's params from a JSON file, before any given with -p,
+// which win: a recorded run reruns as it was, and one value can still change.
+func TestParamsFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	file := filepath.Join(dir, "tally.params.json")
+	if err := os.WriteFile(file, []byte(`{"names": "the pedant|the romantic", "max_lines": 16, "loud": true, "docket": "docket.md"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := preprocessFragletArgv([]string{"--params", file, "tally.py", "-p", "docket=other.md"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"loud=true", "max_lines=16", "names=the pedant|the romantic", "docket=other.md"}
+	if !reflect.DeepEqual(got.params, want) || !reflect.DeepEqual(got.filtered, []string{"tally.py"}) {
+		t.Errorf("params %q, tail %q; want %q and the script", got.params, got.filtered, want)
+	}
+	for _, bad := range []string{`[1, 2]`, `{"x": {"y": 1}}`, `not json`} {
+		if err := os.WriteFile(file, []byte(bad), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := preprocessFragletArgv([]string{"--params=" + file, "tally.py"}); err == nil {
+			t.Errorf("--params with %s was taken", bad)
+		}
+	}
+	if _, err := preprocessFragletArgv([]string{"--params", filepath.Join(dir, "missing.json"), "tally.py"}); err == nil {
+		t.Error("a missing --params file was taken")
 	}
 }
